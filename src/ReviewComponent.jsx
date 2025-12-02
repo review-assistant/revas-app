@@ -289,7 +289,7 @@ export default function ReviewComponent() {
                   className="absolute w-[16px] cursor-pointer transition-all duration-200"
                   style={{
                     backgroundColor: color,
-                    top: `${position.top}px`,
+                    top: `${position.top + 10}px`,
                     height: `${position.height}px`,
                     right: isOpen ? '-28.5px' : '-8.5px'
                   }}
@@ -305,7 +305,7 @@ export default function ReviewComponent() {
                 className="absolute left-0 flex flex-col gap-[11px]"
                 style={{
                   top: paragraphPositions[openCommentBar]
-                    ? `${paragraphPositions[openCommentBar].top + (paragraphPositions[openCommentBar].height - getTotalCommentHeight(comments[openCommentBar])) / 2}px`
+                    ? `${paragraphPositions[openCommentBar].top + 10 + (paragraphPositions[openCommentBar].height - getTotalCommentHeight(comments[openCommentBar])) / 2}px`
                     : '0px'
                 }}
               >
