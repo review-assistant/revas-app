@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 
 // Mock comment data - in a real app, this would come from an API
 const initialComments = {
@@ -69,8 +69,9 @@ export default function ReviewComponent() {
     return text.split(/\n\s*\n/).filter(p => p.trim());
   };
 
-  // Update paragraph positions when text changes or on scroll
-  useEffect(() => {
+  // Update paragraph positions when text changes (including blank line insertions) or on scroll
+  // Using useLayoutEffect to ensure DOM is measured after updates but before paint
+  useLayoutEffect(() => {
     if (hiddenTextRef.current) {
       const elements = hiddenTextRef.current.querySelectorAll('[data-paragraph-id]');
       const positions = {};
