@@ -72,12 +72,12 @@ export default function ReviewComponent() {
   // Update paragraph positions when text changes or on scroll
   useEffect(() => {
     if (hiddenTextRef.current) {
-      const spans = hiddenTextRef.current.querySelectorAll('span[data-paragraph-id]');
+      const elements = hiddenTextRef.current.querySelectorAll('[data-paragraph-id]');
       const positions = {};
 
-      spans.forEach((span) => {
-        const id = parseInt(span.getAttribute('data-paragraph-id'));
-        const rect = span.getBoundingClientRect();
+      elements.forEach((element) => {
+        const id = parseInt(element.getAttribute('data-paragraph-id'));
+        const rect = element.getBoundingClientRect();
         const containerRect = hiddenTextRef.current.getBoundingClientRect();
 
         positions[id] = {
@@ -190,9 +190,9 @@ export default function ReviewComponent() {
             >
               {paragraphs.map((paragraph, index) => (
                 <React.Fragment key={index}>
-                  <span data-paragraph-id={index} className="inline-block">
+                  <div data-paragraph-id={index} className="block">
                     {paragraph}
-                  </span>
+                  </div>
                   {index < paragraphs.length - 1 && <div className="h-[calc(1em*2)]" />}
                 </React.Fragment>
               ))}
