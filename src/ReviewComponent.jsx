@@ -59,6 +59,7 @@ export default function ReviewComponent() {
   const [openCommentBar, setOpenCommentBar] = useState(2); // Start with paragraph 2 open
   const [paragraphPositions, setParagraphPositions] = useState({});
   const [scrollTop, setScrollTop] = useState(0);
+  const [resizeCounter, setResizeCounter] = useState(0);
 
   const textareaRef = useRef(null);
   const hiddenTextRef = useRef(null);
@@ -68,6 +69,16 @@ export default function ReviewComponent() {
   const getParagraphs = (text) => {
     return text.split(/\n\s*\n/).filter(p => p.trim());
   };
+
+  // Listen for window resize events and trigger recalculation
+  useEffect(() => {
+    const handleResize = () => {
+      setResizeCounter(prev => prev + 1);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Update paragraph positions when text changes (including blank line insertions) or on scroll
   // Using useLayoutEffect to ensure DOM is measured after updates but before paint
@@ -90,7 +101,7 @@ export default function ReviewComponent() {
 
       setParagraphPositions(positions);
     }
-  }, [reviewText, scrollTop]);
+  }, [reviewText, scrollTop, resizeCounter]);
 
   // Auto-resize textarea
   useEffect(() => {
