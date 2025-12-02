@@ -37,7 +37,14 @@ const initialComments = {
 
 const initialReviewText = `Limited insights from the analysis. I appreciate the attempt of the authors to propose a new algorithm to analyze the impact of the context to reasoning path of LLMs, however, beyond the algorithm itself I don't see much new insights from the analysis. For example, one main finding from the paper is "good context can lead to incorrect answers and bad context can lead to correct answers,", this is not new and has been revealed from previous work (e.g., [1]). I would like to see the authors do more in-depth analysis with their method.
 
+
+
 Lack of experiments. One of the main contribution claimed by the authors is the proposed methods leading to more accurate reasoning of LLMs, however, it is not well supported by the experiment:- The paper only compares with self-consistency method, but doesn't compare with other state-of-the-art baselines such as Tree of Thoughts or Graph of Thoughts.- The method improves over self-consistency (Table 2) but it is quite marginal (<=2%). Is that statistical significant? Even if so, how do we justify the significantly increased complexity introduced by the method (tree constructing and maintenance etc)? It is worth mentioning in the paper.- If the claim is about improvement of reasoning correctness on the reasoning path, there is no evaluation results to verify whether the reasoning path quality has improved.
+
+
+
+
+
 
 I think the paper need improvement on the writing, here are a few examples:- Long sequences in the paper are not easy to follow. For example, line 13-17 in the abstract;- Fix the citation in line 62-64, and line 256.- Figure 3, it is not clear what is the difference between 3 plots on the same row. I think caption should be added to emphasize that.- As mentioned above, section 3.3 should be expanded to include more details, e.g., what metrics are used? How should we interpret the results? reference:[1] Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting
 
@@ -65,9 +72,60 @@ export default function ReviewComponent() {
   const hiddenTextRef = useRef(null);
   const viewportRef = useRef(null);
 
-  // Split text into paragraphs (separated by blank lines)
+  // Parse text into blocks, tracking paragraph positions while preserving all content
+  const parseTextBlocks = (text) => {
+    const lines = text.split('\n');
+    const blocks = [];
+    let currentParagraph = [];
+    let currentParagraphLines = [];
+    let paragraphIndex = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const isBlank = line.trim() === '';
+
+      if (isBlank) {
+        // If we have a current paragraph, save it
+        if (currentParagraph.length > 0) {
+          blocks.push({
+            type: 'paragraph',
+            content: currentParagraph.join('\n'),
+            lines: currentParagraphLines,
+            id: paragraphIndex++
+          });
+          currentParagraph = [];
+          currentParagraphLines = [];
+        }
+        // Add blank line
+        blocks.push({
+          type: 'blank',
+          line: i
+        });
+      } else {
+        // Add to current paragraph
+        currentParagraph.push(line);
+        currentParagraphLines.push(i);
+      }
+    }
+
+    // Don't forget the last paragraph if text doesn't end with blank line
+    if (currentParagraph.length > 0) {
+      blocks.push({
+        type: 'paragraph',
+        content: currentParagraph.join('\n'),
+        lines: currentParagraphLines,
+        id: paragraphIndex++
+      });
+    }
+
+    return blocks;
+  };
+
+  // Get just the paragraphs for comment mapping
   const getParagraphs = (text) => {
-    return text.split(/\n\s*\n/).filter(p => p.trim());
+    return parseTextBlocks(text)
+      .filter(block => block.type === 'paragraph')
+      .map(block => block.content);
   };
 
   // Listen for window resize events and trigger recalculation
@@ -153,6 +211,7 @@ export default function ReviewComponent() {
   };
 
   const paragraphs = getParagraphs(reviewText);
+  const textBlocks = parseTextBlocks(reviewText);
 
   return (
     <div className="bg-white box-border flex flex-col gap-[21px] items-center justify-center px-[22px] py-[15px] h-screen w-full">
@@ -200,14 +259,18 @@ export default function ReviewComponent() {
               className="absolute top-[10px] left-[20px] right-[20px] pointer-events-none opacity-0 font-normal text-[12px] text-black leading-normal whitespace-pre-wrap"
               aria-hidden="true"
             >
-              {paragraphs.map((paragraph, index) => (
-                <React.Fragment key={index}>
-                  <div data-paragraph-id={index} className="block">
-                    {paragraph}
-                  </div>
-                  {index < paragraphs.length - 1 && <div className="h-[calc(1em*2)]" />}
-                </React.Fragment>
-              ))}
+              {textBlocks.map((block, index) => {
+                if (block.type === 'paragraph') {
+                  return (
+                    <div key={`p-${block.id}`} data-paragraph-id={block.id} className="block">
+                      {block.content}
+                    </div>
+                  );
+                } else {
+                  // Render blank line
+                  return <div key={`b-${index}`} className="block">&nbsp;</div>;
+                }
+              })}
             </div>
 
             {/* Comment Bars */}
