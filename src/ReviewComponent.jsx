@@ -190,10 +190,10 @@ export default function ReviewComponent() {
             >
               {paragraphs.map((paragraph, index) => (
                 <React.Fragment key={index}>
-                  <span data-paragraph-id={index}>
+                  <span data-paragraph-id={index} className="inline-block">
                     {paragraph}
                   </span>
-                  {index < paragraphs.length - 1 && '\n\n'}
+                  {index < paragraphs.length - 1 && <div className="h-[calc(1em*2)]" />}
                 </React.Fragment>
               ))}
             </div>
