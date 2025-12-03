@@ -68,6 +68,7 @@ export default function ReviewComponent() {
   const [scrollTop, setScrollTop] = useState(0);
   const [resizeCounter, setResizeCounter] = useState(0);
   const [reviewTextWidth, setReviewTextWidth] = useState(null);
+  const [lastUpdateParagraphs, setLastUpdateParagraphs] = useState([]);
 
   const textareaRef = useRef(null);
   const hiddenTextRef = useRef(null);
@@ -77,6 +78,13 @@ export default function ReviewComponent() {
   const widthFractionRef = useRef(null);
   const lastScrolledCommentRef = useRef(null);
   const justClosedCommentRef = useRef(null);
+
+  // Initialize lastUpdateParagraphs on first render
+  useEffect(() => {
+    if (lastUpdateParagraphs.length === 0) {
+      setLastUpdateParagraphs(getParagraphs(reviewText));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Parse text into blocks, tracking paragraph positions while preserving all content
   const parseTextBlocks = (text) => {
@@ -278,6 +286,9 @@ export default function ReviewComponent() {
     // In a real app, this would call an API
     console.log('Updating comments for text:', reviewText);
 
+    // Store current paragraphs for comparison
+    setLastUpdateParagraphs(getParagraphs(reviewText));
+
     // Simulate comment update
     setOriginalText(reviewText);
     setIsModified(false);
@@ -301,6 +312,14 @@ export default function ReviewComponent() {
     // Red if any comments are red, yellow otherwise
     const hasRed = paragraphComments.some(c => c.severity === 'red');
     return hasRed ? '#cc5656' : '#ffc700';
+  };
+
+  const isParagraphModified = (paragraphId) => {
+    const currentParagraphs = getParagraphs(reviewText);
+    if (paragraphId >= currentParagraphs.length || paragraphId >= lastUpdateParagraphs.length) {
+      return false;
+    }
+    return currentParagraphs[paragraphId] !== lastUpdateParagraphs[paragraphId];
   };
 
   const paragraphs = getParagraphs(reviewText);
@@ -379,6 +398,7 @@ export default function ReviewComponent() {
 
               const position = paragraphPositions[id];
               const isOpen = openCommentBar === id;
+              const isModified = isParagraphModified(id);
 
               return (
                 <div
@@ -391,7 +411,21 @@ export default function ReviewComponent() {
                     height: `${position.height}px`,
                     right: isOpen ? '-28.5px' : '-8.5px'
                   }}
-                />
+                >
+                  {isModified && (
+                    <svg
+                      className="absolute left-0 top-0 pointer-events-none"
+                      width="16"
+                      height={position.height}
+                      style={{ height: '100%' }}
+                    >
+                      <polygon
+                        points={`0,0 0,${position.height} 16,${position.height}`}
+                        fill="#4a90e2"
+                      />
+                    </svg>
+                  )}
+                </div>
               );
             })}
           </div>
