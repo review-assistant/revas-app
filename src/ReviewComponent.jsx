@@ -69,6 +69,7 @@ export default function ReviewComponent() {
   const [resizeCounter, setResizeCounter] = useState(0);
   const [reviewTextWidth, setReviewTextWidth] = useState(null);
   const [lastUpdateParagraphs, setLastUpdateParagraphs] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   const textareaRef = useRef(null);
   const hiddenTextRef = useRef(null);
@@ -142,14 +143,22 @@ export default function ReviewComponent() {
       .map(block => block.content);
   };
 
-  // Calculate and store width fraction when a comment bar is opened for the first time
+  // Calculate and store width fraction when a comment bar is opened
   useLayoutEffect(() => {
-    if (openCommentBar !== null && reviewTextFrameRef.current && viewportRef.current && widthFractionRef.current === null) {
-      const reviewTextRect = reviewTextFrameRef.current.getBoundingClientRect();
-      const viewportRect = viewportRef.current.getBoundingClientRect();
-      const fraction = reviewTextRect.width / viewportRect.width;
-      widthFractionRef.current = fraction;
-      setReviewTextWidth(reviewTextRect.width);
+    if (openCommentBar !== null && reviewTextFrameRef.current && viewportRef.current) {
+      if (widthFractionRef.current === null) {
+        // First time opening - capture initial fraction
+        const reviewTextRect = reviewTextFrameRef.current.getBoundingClientRect();
+        const viewportRect = viewportRef.current.getBoundingClientRect();
+        const fraction = reviewTextRect.width / viewportRect.width;
+        widthFractionRef.current = fraction;
+        setReviewTextWidth(reviewTextRect.width);
+      } else {
+        // Reopening - use stored fraction
+        const viewportRect = viewportRef.current.getBoundingClientRect();
+        const newWidth = viewportRect.width * widthFractionRef.current;
+        setReviewTextWidth(newWidth);
+      }
     }
     // Trigger recalculation when comment bar opens/closes to update paragraph boundaries
     setResizeCounter(prev => prev + 1);
@@ -278,6 +287,58 @@ export default function ReviewComponent() {
   const handleScroll = (e) => {
     setScrollTop(e.target.scrollTop);
   };
+
+  const handleResizeMouseDown = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleResizeMouseMove = (e) => {
+    if (!isDragging || !scrollContainerRef.current) return;
+
+    const scrollContainer = scrollContainerRef.current;
+    const scrollContainerRect = scrollContainer.getBoundingClientRect();
+
+    // Calculate new width based on mouse position relative to scroll container
+    const mouseX = e.clientX - scrollContainerRect.left;
+
+    // Min width: 300px for readability
+    // Max width: leave at least 150px for comment frame (+ 35px gap)
+    const minWidth = 300;
+    const maxWidth = scrollContainerRect.width - 185; // 150px + 35px gap
+    const newWidth = Math.max(minWidth, Math.min(mouseX, maxWidth));
+
+    setReviewTextWidth(newWidth);
+    // Trigger recalculation during drag to update alignments
+    setResizeCounter(prev => prev + 1);
+  };
+
+  const handleResizeMouseUp = () => {
+    if (isDragging && viewportRef.current && reviewTextFrameRef.current) {
+      setIsDragging(false);
+
+      // Update the stored width fraction
+      const viewportRect = viewportRef.current.getBoundingClientRect();
+      const newFraction = reviewTextWidth / viewportRect.width;
+      widthFractionRef.current = newFraction;
+    }
+  };
+
+  // Add mouse event listeners for resize
+  useEffect(() => {
+    if (isDragging) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleResizeMouseMove);
+      window.addEventListener('mouseup', handleResizeMouseUp);
+      return () => {
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', handleResizeMouseMove);
+        window.removeEventListener('mouseup', handleResizeMouseUp);
+      };
+    }
+  }, [isDragging, reviewTextWidth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUpdate = () => {
     if (!isModified) return;
@@ -428,6 +489,15 @@ export default function ReviewComponent() {
                 </div>
               );
             })}
+
+            {/* Resize Handle - Only show when a comment bar is open */}
+            {openCommentBar !== null && (
+              <div
+                className="absolute top-0 bottom-0 w-[6px] cursor-col-resize hover:bg-blue-200 transition-colors"
+                style={{ right: '-3px' }}
+                onMouseDown={handleResizeMouseDown}
+              />
+            )}
           </div>
 
           {/* Comment Frame - Only show when a comment bar is open */}
