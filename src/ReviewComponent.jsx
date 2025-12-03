@@ -63,7 +63,7 @@ export default function ReviewComponent() {
   const [originalText, setOriginalText] = useState(initialReviewText);
   const [isModified, setIsModified] = useState(false);
   const [comments, setComments] = useState(initialComments);
-  const [openCommentBar, setOpenCommentBar] = useState(2); // Start with paragraph 2 open
+  const [openCommentBar, setOpenCommentBar] = useState(null); // Start with no comment bar open
   const [paragraphPositions, setParagraphPositions] = useState({});
   const [scrollTop, setScrollTop] = useState(0);
   const [resizeCounter, setResizeCounter] = useState(0);
@@ -131,21 +131,23 @@ export default function ReviewComponent() {
       .map(block => block.content);
   };
 
-  // Calculate and store initial width fraction after first render
+  // Calculate and store width fraction when a comment bar is opened for the first time
   useLayoutEffect(() => {
-    if (reviewTextFrameRef.current && viewportRef.current && widthFractionRef.current === null) {
+    if (openCommentBar !== null && reviewTextFrameRef.current && viewportRef.current && widthFractionRef.current === null) {
       const reviewTextRect = reviewTextFrameRef.current.getBoundingClientRect();
       const viewportRect = viewportRef.current.getBoundingClientRect();
       const fraction = reviewTextRect.width / viewportRect.width;
       widthFractionRef.current = fraction;
       setReviewTextWidth(reviewTextRect.width);
     }
-  });
+    // Trigger recalculation when comment bar opens/closes to update paragraph boundaries
+    setResizeCounter(prev => prev + 1);
+  }, [openCommentBar]);
 
   // Listen for window resize events and maintain width fraction
   useEffect(() => {
     const handleResize = () => {
-      if (viewportRef.current && widthFractionRef.current !== null) {
+      if (openCommentBar !== null && viewportRef.current && widthFractionRef.current !== null) {
         const viewportRect = viewportRef.current.getBoundingClientRect();
         const newWidth = viewportRect.width * widthFractionRef.current;
         setReviewTextWidth(newWidth);
@@ -155,7 +157,7 @@ export default function ReviewComponent() {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [openCommentBar]);
 
   // Update paragraph positions when text changes (including blank line insertions) or on scroll
   // Using useLayoutEffect to ensure DOM is measured after updates but before paint
@@ -180,13 +182,13 @@ export default function ReviewComponent() {
     }
   }, [reviewText, scrollTop, resizeCounter]);
 
-  // Auto-resize textarea
+  // Auto-resize textarea (when text changes or width changes)
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
     }
-  }, [reviewText]);
+  }, [reviewText, resizeCounter]);
 
   const handleTextChange = (e) => {
     setReviewText(e.target.value);
@@ -264,8 +266,8 @@ export default function ReviewComponent() {
           {/* Review Text Frame */}
           <div
             ref={reviewTextFrameRef}
-            className={`border border-black box-border px-[20px] py-[10px] relative min-h-full ${reviewTextWidth === null ? 'flex-1' : 'shrink-0'}`}
-            style={reviewTextWidth !== null ? { width: `${reviewTextWidth}px` } : {}}
+            className={`border border-black box-border px-[20px] py-[10px] relative min-h-full ${openCommentBar === null || reviewTextWidth === null ? 'flex-1' : 'shrink-0'}`}
+            style={openCommentBar !== null && reviewTextWidth !== null ? { width: `${reviewTextWidth}px` } : {}}
           >
             {/* Textarea for editing */}
             <textarea
@@ -321,38 +323,40 @@ export default function ReviewComponent() {
             })}
           </div>
 
-          {/* Comment Frame */}
-          <div className="flex-1 font-normal text-[12px] text-black relative min-h-full">
-            {openCommentBar !== null && comments[openCommentBar] && (
-              <div
-                className="absolute left-0 flex flex-col gap-[11px]"
-                style={{
-                  top: paragraphPositions[openCommentBar]
-                    ? `${paragraphPositions[openCommentBar].top + 10 + (paragraphPositions[openCommentBar].height - getTotalCommentHeight(comments[openCommentBar])) / 2}px`
-                    : '0px'
-                }}
-              >
-                {comments[openCommentBar]
-                  .sort((a, b) => {
-                    // Red comments come before yellow
-                    if (a.severity === 'red' && b.severity !== 'red') return -1;
-                    if (a.severity !== 'red' && b.severity === 'red') return 1;
-                    return 0;
-                  })
-                  .map((comment, index) => (
-                    <div key={index} className="leading-normal">
-                      <p
-                        className="font-bold mb-0 not-italic"
-                        style={{ color: comment.severity === 'red' ? '#cc5656' : '#ffc700' }}
-                      >
-                        {comment.label}
-                      </p>
-                      <p className="mb-0">{comment.text}</p>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
+          {/* Comment Frame - Only show when a comment bar is open */}
+          {openCommentBar !== null && (
+            <div className="flex-1 font-normal text-[12px] text-black relative min-h-full">
+              {comments[openCommentBar] && (
+                <div
+                  className="absolute left-0 flex flex-col gap-[11px]"
+                  style={{
+                    top: paragraphPositions[openCommentBar]
+                      ? `${paragraphPositions[openCommentBar].top + 10 + (paragraphPositions[openCommentBar].height - getTotalCommentHeight(comments[openCommentBar])) / 2}px`
+                      : '0px'
+                  }}
+                >
+                  {comments[openCommentBar]
+                    .sort((a, b) => {
+                      // Red comments come before yellow
+                      if (a.severity === 'red' && b.severity !== 'red') return -1;
+                      if (a.severity !== 'red' && b.severity === 'red') return 1;
+                      return 0;
+                    })
+                    .map((comment, index) => (
+                      <div key={index} className="leading-normal">
+                        <p
+                          className="font-bold mb-0 not-italic"
+                          style={{ color: comment.severity === 'red' ? '#cc5656' : '#ffc700' }}
+                        >
+                          {comment.label}
+                        </p>
+                        <p className="mb-0">{comment.text}</p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
