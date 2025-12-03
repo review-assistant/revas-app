@@ -465,7 +465,7 @@ export default function ReviewComponent() {
                 <div
                   key={id}
                   onClick={() => handleCommentBarClick(id)}
-                  className="absolute w-[16px] cursor-pointer transition-all duration-200"
+                  className="absolute w-[16px] cursor-pointer transition-all duration-200 z-10"
                   style={{
                     backgroundColor: color,
                     top: `${position.top + 10}px`,
@@ -493,7 +493,7 @@ export default function ReviewComponent() {
             {/* Resize Handle - Only show when a comment bar is open */}
             {openCommentBar !== null && (
               <div
-                className="absolute top-0 bottom-0 w-[6px] cursor-col-resize hover:bg-blue-200 transition-colors"
+                className="absolute top-0 bottom-0 w-[6px] cursor-col-resize hover:bg-blue-200 transition-colors z-0"
                 style={{ right: '-3px' }}
                 onMouseDown={handleResizeMouseDown}
               />
