@@ -413,7 +413,7 @@ export default function ReviewComponent() {
       >
         <div
           ref={scrollContainerRef}
-          className="flex gap-[35px] items-start justify-end overflow-y-auto h-full hide-scrollbar"
+          className="flex gap-[35px] items-start justify-end overflow-y-auto overflow-x-hidden h-full hide-scrollbar"
           onScroll={handleScroll}
         >
           {/* Review Text Frame */}
