@@ -73,7 +73,10 @@ export default function ReviewComponent() {
   const hiddenTextRef = useRef(null);
   const viewportRef = useRef(null);
   const reviewTextFrameRef = useRef(null);
+  const scrollContainerRef = useRef(null);
   const widthFractionRef = useRef(null);
+  const lastScrolledCommentRef = useRef(null);
+  const justClosedCommentRef = useRef(null);
 
   // Parse text into blocks, tracking paragraph positions while preserving all content
   const parseTextBlocks = (text) => {
@@ -190,6 +193,75 @@ export default function ReviewComponent() {
     }
   }, [reviewText, resizeCounter]);
 
+  // Track which comment was just closed
+  const previousOpenCommentRef = useRef(openCommentBar);
+  useEffect(() => {
+    if (previousOpenCommentRef.current !== null && openCommentBar === null) {
+      // A comment bar was just closed
+      justClosedCommentRef.current = previousOpenCommentRef.current;
+    }
+    previousOpenCommentRef.current = openCommentBar;
+  }, [openCommentBar]);
+
+  // Scroll to center the clicked comment bar after layout settles (only once per click)
+  useEffect(() => {
+    if (openCommentBar === null) {
+      // When closing a comment bar, scroll to center the closed bar after resize
+      if (justClosedCommentRef.current !== null &&
+          paragraphPositions[justClosedCommentRef.current] &&
+          scrollContainerRef.current) {
+        const scrollTimer = setTimeout(() => {
+          const position = paragraphPositions[justClosedCommentRef.current];
+          const scrollContainer = scrollContainerRef.current;
+          const containerHeight = scrollContainer.clientHeight;
+
+          // Calculate the center of the comment bar relative to the scrollable content
+          const commentBarCenter = position.top + 10 + (position.height / 2);
+
+          // Scroll so the comment bar center aligns with viewport center
+          const targetScrollTop = commentBarCenter - (containerHeight / 2);
+
+          scrollContainer.scrollTo({
+            top: Math.max(0, targetScrollTop),
+            behavior: 'smooth'
+          });
+
+          // Clear the just closed ref
+          justClosedCommentRef.current = null;
+        }, 100); // Wait 100ms for layout to settle
+
+        return () => clearTimeout(scrollTimer);
+      }
+      // Reset when closing a comment bar so clicking the same bar again will scroll
+      lastScrolledCommentRef.current = null;
+    } else if (openCommentBar !== lastScrolledCommentRef.current &&
+               paragraphPositions[openCommentBar] &&
+               scrollContainerRef.current) {
+      // Opening a comment bar - scroll to center it
+      const scrollTimer = setTimeout(() => {
+        const position = paragraphPositions[openCommentBar];
+        const scrollContainer = scrollContainerRef.current;
+        const containerHeight = scrollContainer.clientHeight;
+
+        // Calculate the center of the comment bar relative to the scrollable content
+        const commentBarCenter = position.top + 10 + (position.height / 2);
+
+        // Scroll so the comment bar center aligns with viewport center
+        const targetScrollTop = commentBarCenter - (containerHeight / 2);
+
+        scrollContainer.scrollTo({
+          top: Math.max(0, targetScrollTop),
+          behavior: 'smooth'
+        });
+
+        // Mark this comment as scrolled
+        lastScrolledCommentRef.current = openCommentBar;
+      }, 100); // Wait 100ms for layout to settle
+
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [openCommentBar, paragraphPositions]);
+
   const handleTextChange = (e) => {
     setReviewText(e.target.value);
     setIsModified(e.target.value !== originalText);
@@ -260,6 +332,7 @@ export default function ReviewComponent() {
         className="absolute border border-black inset-[57px_22px_45px_22px] overflow-hidden"
       >
         <div
+          ref={scrollContainerRef}
           className="flex gap-[35px] items-start justify-end overflow-y-auto h-full"
           onScroll={handleScroll}
         >
