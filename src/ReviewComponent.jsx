@@ -67,10 +67,13 @@ export default function ReviewComponent() {
   const [paragraphPositions, setParagraphPositions] = useState({});
   const [scrollTop, setScrollTop] = useState(0);
   const [resizeCounter, setResizeCounter] = useState(0);
+  const [reviewTextWidth, setReviewTextWidth] = useState(null);
 
   const textareaRef = useRef(null);
   const hiddenTextRef = useRef(null);
   const viewportRef = useRef(null);
+  const reviewTextFrameRef = useRef(null);
+  const widthFractionRef = useRef(null);
 
   // Parse text into blocks, tracking paragraph positions while preserving all content
   const parseTextBlocks = (text) => {
@@ -128,9 +131,25 @@ export default function ReviewComponent() {
       .map(block => block.content);
   };
 
-  // Listen for window resize events and trigger recalculation
+  // Calculate and store initial width fraction after first render
+  useLayoutEffect(() => {
+    if (reviewTextFrameRef.current && viewportRef.current && widthFractionRef.current === null) {
+      const reviewTextRect = reviewTextFrameRef.current.getBoundingClientRect();
+      const viewportRect = viewportRef.current.getBoundingClientRect();
+      const fraction = reviewTextRect.width / viewportRect.width;
+      widthFractionRef.current = fraction;
+      setReviewTextWidth(reviewTextRect.width);
+    }
+  });
+
+  // Listen for window resize events and maintain width fraction
   useEffect(() => {
     const handleResize = () => {
+      if (viewportRef.current && widthFractionRef.current !== null) {
+        const viewportRect = viewportRef.current.getBoundingClientRect();
+        const newWidth = viewportRect.width * widthFractionRef.current;
+        setReviewTextWidth(newWidth);
+      }
       setResizeCounter(prev => prev + 1);
     };
 
@@ -243,7 +262,11 @@ export default function ReviewComponent() {
           onScroll={handleScroll}
         >
           {/* Review Text Frame */}
-          <div className="flex-1 border border-black box-border px-[20px] py-[10px] relative min-h-full">
+          <div
+            ref={reviewTextFrameRef}
+            className={`border border-black box-border px-[20px] py-[10px] relative min-h-full ${reviewTextWidth === null ? 'flex-1' : 'shrink-0'}`}
+            style={reviewTextWidth !== null ? { width: `${reviewTextWidth}px` } : {}}
+          >
             {/* Textarea for editing */}
             <textarea
               ref={textareaRef}
@@ -299,7 +322,7 @@ export default function ReviewComponent() {
           </div>
 
           {/* Comment Frame */}
-          <div className="w-[311.5px] font-normal text-[12px] text-black relative min-h-full">
+          <div className="flex-1 font-normal text-[12px] text-black relative min-h-full">
             {openCommentBar !== null && comments[openCommentBar] && (
               <div
                 className="absolute left-0 flex flex-col gap-[11px]"
