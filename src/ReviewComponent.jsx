@@ -455,11 +455,13 @@ export default function ReviewComponent() {
             {Object.keys(paragraphPositions).map((paragraphId) => {
               const id = parseInt(paragraphId);
               const color = getCommentBarColor(id);
-              if (!color) return null;
+              const isModified = isParagraphModified(id);
+
+              // Only render if there are comments OR if the paragraph is modified
+              if (!color && !isModified) return null;
 
               const position = paragraphPositions[id];
               const isOpen = openCommentBar === id;
-              const isModified = isParagraphModified(id);
 
               return (
                 <React.Fragment key={id}>
@@ -489,7 +491,7 @@ export default function ReviewComponent() {
                     onClick={() => handleCommentBarClick(id)}
                     className="absolute w-[16px] cursor-pointer transition-all duration-200 z-10"
                     style={{
-                      backgroundColor: color,
+                      backgroundColor: color || 'transparent',
                       top: `${position.top + 10}px`,
                       height: `${position.height}px`,
                       right: isOpen ? '-28.5px' : '-8.5px'
