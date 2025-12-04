@@ -71,6 +71,11 @@ export default function ReviewComponent() {
   const [lastUpdateParagraphs, setLastUpdateParagraphs] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Stable paragraph tracking: {id, originalContent, currentContent}
+  const [paragraphsWithIds, setParagraphsWithIds] = useState([]);
+  const nextParagraphIdRef = useRef(0);
+  const [commentsByParagraphId, setCommentsByParagraphId] = useState({});
+
   const textareaRef = useRef(null);
   const hiddenTextRef = useRef(null);
   const viewportRef = useRef(null);
@@ -80,12 +85,125 @@ export default function ReviewComponent() {
   const lastScrolledCommentRef = useRef(null);
   const justClosedCommentRef = useRef(null);
 
-  // Initialize lastUpdateParagraphs on first render
+  // Initialize paragraph IDs and comments on first render
   useEffect(() => {
+    const initialParagraphTexts = getParagraphs(initialReviewText);
+
+    // Create initial paragraphs with stable IDs
+    const withIds = initialParagraphTexts.map((content, index) => ({
+      id: index,
+      originalContent: content,
+      currentContent: content
+    }));
+
+    setParagraphsWithIds(withIds);
+    nextParagraphIdRef.current = initialParagraphTexts.length;
+
+    // Convert index-based comments to ID-based comments
+    const commentsById = {};
+    Object.keys(initialComments).forEach(indexStr => {
+      const index = parseInt(indexStr);
+      if (index < initialParagraphTexts.length) {
+        commentsById[index] = initialComments[indexStr];
+      }
+    });
+
+    setCommentsByParagraphId(commentsById);
+
     if (lastUpdateParagraphs.length === 0) {
-      setLastUpdateParagraphs(getParagraphs(reviewText));
+      setLastUpdateParagraphs(initialParagraphTexts);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Match saved paragraphs to new paragraph texts
+  const matchParagraphs = (savedParagraphs, newParagraphTexts) => {
+    const matched = []; // {newIndex, savedParagraph, newText}
+    const unmatchedSaved = [...savedParagraphs];
+    const unmatchedNewIndices = newParagraphTexts.map((_, i) => i);
+
+    // Phase 1: Exact matches
+    for (let i = unmatchedNewIndices.length - 1; i >= 0; i--) {
+      const newIndex = unmatchedNewIndices[i];
+      const newText = newParagraphTexts[newIndex];
+      const savedIndex = unmatchedSaved.findIndex(s => s.currentContent === newText);
+
+      if (savedIndex !== -1) {
+        matched.push({
+          newIndex: newIndex,
+          savedParagraph: unmatchedSaved[savedIndex],
+          newText: newText
+        });
+        unmatchedSaved.splice(savedIndex, 1);
+        unmatchedNewIndices.splice(i, 1);
+      }
+    }
+
+    // Phase 2: Bag-of-words matches
+    for (let i = unmatchedNewIndices.length - 1; i >= 0; i--) {
+      const newIndex = unmatchedNewIndices[i];
+      const newText = newParagraphTexts[newIndex];
+      const newWords = new Set(newText.toLowerCase().split(/\s+/).filter(w => w.length > 0));
+
+      let bestMatch = null;
+      let bestOverlap = 0;
+
+      for (const saved of unmatchedSaved) {
+        const savedWords = new Set(saved.currentContent.toLowerCase().split(/\s+/).filter(w => w.length > 0));
+        const intersection = new Set([...newWords].filter(w => savedWords.has(w)));
+        const union = new Set([...newWords, ...savedWords]);
+        const overlapRatio = union.size > 0 ? intersection.size / union.size : 0;
+
+        if (overlapRatio > 0.5 && overlapRatio > bestOverlap) {
+          bestOverlap = overlapRatio;
+          bestMatch = saved;
+        }
+      }
+
+      if (bestMatch) {
+        matched.push({
+          newIndex: newIndex,
+          savedParagraph: bestMatch,
+          newText: newText
+        });
+        unmatchedSaved.splice(unmatchedSaved.indexOf(bestMatch), 1);
+        unmatchedNewIndices.splice(i, 1);
+      }
+    }
+
+    return { matched, unmatchedNewIndices };
+  };
+
+  // Update paragraph IDs when text changes
+  useEffect(() => {
+    if (paragraphsWithIds.length === 0) return; // Wait for initialization
+
+    const newParagraphTexts = getParagraphs(reviewText);
+    const { matched, unmatchedNewIndices } = matchParagraphs(paragraphsWithIds, newParagraphTexts);
+
+    // Build updated paragraph list
+    const updated = new Array(newParagraphTexts.length);
+
+    // Place matched paragraphs (keep ID and originalContent, update currentContent)
+    matched.forEach(m => {
+      updated[m.newIndex] = {
+        id: m.savedParagraph.id,
+        originalContent: m.savedParagraph.originalContent,
+        currentContent: m.newText
+      };
+    });
+
+    // Create new paragraphs for unmatched (with empty originalContent)
+    unmatchedNewIndices.forEach(newIndex => {
+      const newText = newParagraphTexts[newIndex];
+      updated[newIndex] = {
+        id: nextParagraphIdRef.current++,
+        originalContent: '', // Empty to indicate new paragraph
+        currentContent: newText
+      };
+    });
+
+    setParagraphsWithIds(updated);
+  }, [reviewText]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Parse text into blocks, tracking paragraph positions while preserving all content
   const parseTextBlocks = (text) => {
@@ -367,7 +485,7 @@ export default function ReviewComponent() {
   };
 
   const getCommentBarColor = (paragraphId) => {
-    const paragraphComments = comments[paragraphId];
+    const paragraphComments = commentsByParagraphId[paragraphId];
     if (!paragraphComments || paragraphComments.length === 0) return null;
 
     // Red if any comments are red, yellow otherwise
@@ -376,11 +494,15 @@ export default function ReviewComponent() {
   };
 
   const isParagraphModified = (paragraphId) => {
-    const currentParagraphs = getParagraphs(reviewText);
-    if (paragraphId >= currentParagraphs.length || paragraphId >= lastUpdateParagraphs.length) {
-      return false;
-    }
-    return currentParagraphs[paragraphId] !== lastUpdateParagraphs[paragraphId];
+    const paragraph = paragraphsWithIds.find(p => p.id === paragraphId);
+    if (!paragraph) return false;
+    return paragraph.currentContent !== paragraph.originalContent;
+  };
+
+  const isParagraphNew = (paragraphId) => {
+    const paragraph = paragraphsWithIds.find(p => p.id === paragraphId);
+    if (!paragraph) return false;
+    return paragraph.originalContent === '';
   };
 
   const paragraphs = getParagraphs(reviewText);
@@ -452,15 +574,17 @@ export default function ReviewComponent() {
             </div>
 
             {/* Comment Bars */}
-            {Object.keys(paragraphPositions).map((paragraphId) => {
-              const id = parseInt(paragraphId);
+            {paragraphsWithIds.map((paragraph, index) => {
+              const position = paragraphPositions[index];
+              if (!position) return null;
+
+              const id = paragraph.id;
               const color = getCommentBarColor(id);
               const isModified = isParagraphModified(id);
 
               // Only render if there are comments OR if the paragraph is modified
               if (!color && !isModified) return null;
 
-              const position = paragraphPositions[id];
               const isOpen = openCommentBar === id;
 
               return (
@@ -532,18 +656,23 @@ export default function ReviewComponent() {
           </div>
 
           {/* Comment Frame - Only show when a comment bar is open */}
-          {openCommentBar !== null && (
-            <div className="flex-1 font-normal text-[12px] text-black relative min-h-full">
-              {comments[openCommentBar] && (
-                <div
-                  className="absolute left-0 flex flex-col gap-[11px]"
-                  style={{
-                    top: paragraphPositions[openCommentBar]
-                      ? `${paragraphPositions[openCommentBar].top + 10 + (paragraphPositions[openCommentBar].height - getTotalCommentHeight(comments[openCommentBar])) / 2}px`
-                      : '0px'
-                  }}
-                >
-                  {comments[openCommentBar]
+          {openCommentBar !== null && (() => {
+            const paragraphIndex = paragraphsWithIds.findIndex(p => p.id === openCommentBar);
+            const position = paragraphIndex >= 0 ? paragraphPositions[paragraphIndex] : null;
+            const paragraphComments = commentsByParagraphId[openCommentBar];
+
+            return (
+              <div className="flex-1 font-normal text-[12px] text-black relative min-h-full">
+                {paragraphComments && (
+                  <div
+                    className="absolute left-0 flex flex-col gap-[11px]"
+                    style={{
+                      top: position
+                        ? `${position.top + 10 + (position.height - getTotalCommentHeight(paragraphComments)) / 2}px`
+                        : '0px'
+                    }}
+                  >
+                    {paragraphComments
                     .sort((a, b) => {
                       // Red comments come before yellow
                       if (a.severity === 'red' && b.severity !== 'red') return -1;
@@ -564,7 +693,8 @@ export default function ReviewComponent() {
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
         </div>
       </div>
     </div>
