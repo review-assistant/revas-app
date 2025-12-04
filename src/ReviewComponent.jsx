@@ -480,9 +480,15 @@ export default function ReviewComponent() {
                       height={position.height}
                       style={{ height: '100%' }}
                     >
-                      <polygon
-                        points={`0,0 0,${position.height} 16,${position.height}`}
-                        fill="#4a90e2"
+                      <rect
+                        x="1.5"
+                        y="1.5"
+                        width="13"
+                        height={position.height - 3}
+                        fill="none"
+                        stroke="#4a90e2"
+                        strokeWidth="3"
+                        strokeDasharray="6 3"
                       />
                     </svg>
                   )}
