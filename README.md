@@ -35,7 +35,7 @@ If not installed, download from [nodejs.org](https://nodejs.org/)
 
 1. Navigate to the project directory:
 ```bash
-cd revas
+cd revas-app
 ```
 
 2. Install dependencies:
@@ -92,7 +92,7 @@ npm run preview
 ## Project Structure
 
 ```
-revas/
+revas-app/
 ├── src/
 │   ├── ReviewComponent.jsx  # Main component with all interactions
 │   ├── App.jsx              # Application entry point
