@@ -111,3 +111,11 @@ revas-app/
 - Support for multiple review types
 - Export to various formats
 - Collaborative editing features
+
+## Some other things Revas might mean:
+-  Rescue, Evacuation, Ventilation, Attack, and Salvage (firefighting tactical priorities)
+-  Business simulation game (Revas.online)
+-  Real Estate Virtual Assistant (revas.us)
+-  A medication for high blood pressure (Revas 25mg)
+-  Reinforcing Vasal Suture (a vasectomy-reversing surgery)
+-  River Edge Volunteer Ambulance Service (Revas.org)
