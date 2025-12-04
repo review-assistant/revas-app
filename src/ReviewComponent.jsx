@@ -462,37 +462,60 @@ export default function ReviewComponent() {
               const isModified = isParagraphModified(id);
 
               return (
-                <div
-                  key={id}
-                  onClick={() => handleCommentBarClick(id)}
-                  className="absolute w-[16px] cursor-pointer transition-all duration-200 z-10"
-                  style={{
-                    backgroundColor: color,
-                    top: `${position.top + 10}px`,
-                    height: `${position.height}px`,
-                    right: isOpen ? '-28.5px' : '-8.5px'
-                  }}
-                >
-                  {isModified && (
+                <React.Fragment key={id}>
+                  {/* Connecting line - drawn behind comment bar */}
+                  {isOpen && (
                     <svg
-                      className="absolute left-0 top-0 pointer-events-none"
-                      width="16"
-                      height={position.height}
-                      style={{ height: '100%' }}
+                      className="absolute pointer-events-none z-5"
+                      style={{
+                        top: `${position.top + 10 + position.height / 2 - 1.5}px`,
+                        right: '-28.5px',
+                        width: '29px',
+                        height: '3px'
+                      }}
                     >
-                      <rect
-                        x="1.5"
-                        y="1.5"
-                        width="13"
-                        height={position.height - 3}
-                        fill="none"
-                        stroke="#4a90e2"
+                      <line
+                        x1="21"
+                        y1="1.5"
+                        x2="0"
+                        y2="1.5"
+                        stroke="black"
                         strokeWidth="3"
-                        strokeDasharray="6 3"
                       />
                     </svg>
                   )}
-                </div>
+
+                  <div
+                    onClick={() => handleCommentBarClick(id)}
+                    className="absolute w-[16px] cursor-pointer transition-all duration-200 z-10"
+                    style={{
+                      backgroundColor: color,
+                      top: `${position.top + 10}px`,
+                      height: `${position.height}px`,
+                      right: isOpen ? '-28.5px' : '-8.5px'
+                    }}
+                  >
+                    {isModified && (
+                      <svg
+                        className="absolute left-0 top-0 pointer-events-none"
+                        width="16"
+                        height={position.height}
+                        style={{ height: '100%' }}
+                      >
+                        <rect
+                          x="1.5"
+                          y="1.5"
+                          width="13"
+                          height={position.height - 3}
+                          fill="none"
+                          stroke="#4a90e2"
+                          strokeWidth="3"
+                          strokeDasharray="6 3"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                </React.Fragment>
               );
             })}
 
