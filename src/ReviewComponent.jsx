@@ -1,5 +1,10 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 
+// Helper function to generate random scores with equal probability
+const generateWeightedScore = () => {
+  return Math.floor(Math.random() * 5) + 1; // 1-5, each with 20% probability
+};
+
 // Mock function to generate comments for paragraphs
 // In a real app, this would be an HTTP endpoint call
 const getComments = async (paragraphs) => {
@@ -12,12 +17,36 @@ const getComments = async (paragraphs) => {
   const results = {};
 
   paragraphs.forEach(para => {
-    // Generate random scores for demo purposes
     const labels = ['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'];
     const comment = {};
 
+    // Map label to marker suffix
+    const labelMarkers = {
+      'Actionability': 'A',
+      'Helpfulness': 'H',
+      'Grounding': 'G',
+      'Verifiability': 'V'
+    };
+
     labels.forEach(label => {
-      const score = Math.floor(Math.random() * 5) + 1; // 1-5
+      const marker = labelMarkers[label];
+      let score;
+
+      // Check for special markers in text to override score
+      if (para.content.includes(`XXX${marker}`)) {
+        score = 1;
+        console.log(`Found marker XXX${marker} in paragraph ${para.id}, setting ${label} score to 1`);
+      } else if (para.content.includes(`YYY${marker}`)) {
+        score = 3;
+        console.log(`Found marker YYY${marker} in paragraph ${para.id}, setting ${label} score to 3`);
+      } else if (para.content.includes(`ZZZ${marker}`)) {
+        score = 5;
+        console.log(`Found marker ZZZ${marker} in paragraph ${para.id}, setting ${label} score to 5`);
+      } else {
+        // Generate random score as usual
+        score = generateWeightedScore();
+      }
+
       comment[label] = {
         score: score,
         text: `${label} feedback for paragraph: Score ${score}/5. ${para.content.substring(0, 50)}...`
@@ -469,11 +498,13 @@ export default function ReviewComponent() {
     const commentResults = await getComments(modifiedParagraphs);
 
     // Transform API response to internal comment format with severity
+    // Also implement monotonic score behavior: new scores are max of old and new
     const newComments = {};
 
     Object.keys(commentResults).forEach(paragraphIdStr => {
       const paragraphId = parseInt(paragraphIdStr);
       const commentData = commentResults[paragraphIdStr];
+      const existingComments = commentsByParagraphId[paragraphId] || [];
 
       // Transform each label's data into the internal format
       const formattedComments = [];
@@ -481,21 +512,42 @@ export default function ReviewComponent() {
 
       labels.forEach(label => {
         if (commentData[label]) {
-          const { score, text } = commentData[label];
+          let { score, text } = commentData[label];
+
+          // Check if this paragraph has test markers that should override monotonic behavior
+          const labelMarkers = { 'Actionability': 'A', 'Helpfulness': 'H', 'Grounding': 'G', 'Verifiability': 'V' };
+          const marker = labelMarkers[label];
+          const paraContent = modifiedParagraphs.find(p => p.id === paragraphId)?.content || '';
+          const hasMarker = paraContent.includes(`XXX${marker}`) ||
+                            paraContent.includes(`YYY${marker}`) ||
+                            paraContent.includes(`ZZZ${marker}`);
+
+          // Implement monotonic behavior UNLESS a marker is present (markers always override)
+          if (!hasMarker) {
+            const existingComment = existingComments.find(c => c.label === label);
+            if (existingComment && existingComment.score) {
+              // Take the maximum of old and new scores
+              score = Math.max(existingComment.score, score);
+              // Update text to reflect the final score
+              text = `${label} feedback for paragraph: Score ${score}/5. ${commentData[label].text.split('. ').slice(1).join('. ')}`;
+            }
+          }
+
           const severity = scoreToSeverity(score);
 
-          // Only include items that are not severity 'none'
-          if (severity !== 'none') {
-            formattedComments.push({
-              severity: severity,
-              label: label,
-              text: text
-            });
-          }
+          // Store all items including severity 'none' for score tracking
+          // Items with severity 'none' will be filtered out at display time
+          formattedComments.push({
+            severity: severity,
+            label: label,
+            text: text,
+            score: score // Store the score for future comparisons
+          });
         }
       });
 
-      // Only add comments for this paragraph if there are any non-'none' items
+      // Always store all comments (including 'none' severity items for score tracking)
+      // Display logic will filter out 'none' items at render time
       if (formattedComments.length > 0) {
         newComments[paragraphId] = formattedComments;
       }
@@ -543,8 +595,12 @@ export default function ReviewComponent() {
     const paragraphComments = commentsByParagraphId[paragraphId];
     if (!paragraphComments || paragraphComments.length === 0) return null;
 
-    // Red if any comments are red, yellow otherwise
-    const hasRed = paragraphComments.some(c => c.severity === 'red');
+    // Filter out 'none' severity items (score 5) - they shouldn't be displayed
+    const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
+    if (visibleComments.length === 0) return null;
+
+    // Red if any visible comments are red, yellow otherwise
+    const hasRed = visibleComments.some(c => c.severity === 'red');
     return hasRed ? '#cc5656' : '#ffc700';
   };
 
@@ -718,35 +774,40 @@ export default function ReviewComponent() {
 
             return (
               <div className="flex-1 font-normal text-[12px] text-black relative min-h-full">
-                {paragraphComments && (
-                  <div
-                    className="absolute left-0 flex flex-col gap-[11px]"
-                    style={{
-                      top: position
-                        ? `${position.top + 10 + (position.height - getTotalCommentHeight(paragraphComments)) / 2}px`
-                        : '0px'
-                    }}
-                  >
-                    {paragraphComments
-                    .sort((a, b) => {
-                      // Red comments come before yellow
-                      if (a.severity === 'red' && b.severity !== 'red') return -1;
-                      if (a.severity !== 'red' && b.severity === 'red') return 1;
-                      return 0;
-                    })
-                    .map((comment, index) => (
-                      <div key={index} className="leading-normal">
-                        <p
-                          className="font-bold mb-0 not-italic"
-                          style={{ color: comment.severity === 'red' ? '#cc5656' : '#ffc700' }}
-                        >
-                          {comment.label}
-                        </p>
-                        <p className="mb-0">{comment.text}</p>
-                      </div>
-                    ))}
-                </div>
-              )}
+                {paragraphComments && (() => {
+                  // Filter out 'none' severity items (score 5) at display time
+                  const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
+
+                  return visibleComments.length > 0 && (
+                    <div
+                      className="absolute left-0 flex flex-col gap-[11px]"
+                      style={{
+                        top: position
+                          ? `${position.top + 10 + (position.height - getTotalCommentHeight(visibleComments)) / 2}px`
+                          : '0px'
+                      }}
+                    >
+                      {visibleComments
+                      .sort((a, b) => {
+                        // Red comments come before yellow
+                        if (a.severity === 'red' && b.severity !== 'red') return -1;
+                        if (a.severity !== 'red' && b.severity === 'red') return 1;
+                        return 0;
+                      })
+                      .map((comment, index) => (
+                        <div key={index} className="leading-normal">
+                          <p
+                            className="font-bold mb-0 not-italic"
+                            style={{ color: comment.severity === 'red' ? '#cc5656' : '#ffc700' }}
+                          >
+                            {comment.label}
+                          </p>
+                          <p className="mb-0">{comment.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
             </div>
             );
           })()}

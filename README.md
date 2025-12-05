@@ -89,6 +89,87 @@ npm run preview
 - Click to process updated text and refresh comments
 - Returns to inactive state after updating
 
+## Mock Comment Generation & Test Markers
+
+### Comment Generation System
+
+The application includes a mock `getComments()` function that simulates an API endpoint for generating review comments. This function:
+
+- Evaluates paragraphs on four dimensions: **Actionability**, **Helpfulness**, **Grounding**, and **Verifiability**
+- Assigns scores from 1-5 for each dimension (equal probability for each score)
+- Converts scores to severity levels:
+  - **Score 1-2**: Red (critical issues)
+  - **Score 3-4**: Yellow (suggestions for improvement)
+  - **Score 5**: None (hidden - perfect score)
+
+### Monotonic Score Behavior
+
+Comments follow a monotonically non-decreasing score system:
+- When a paragraph is re-evaluated, each label's score becomes the **maximum** of its previous and new scores
+- Once a label reaches score 5, it stays there permanently
+- This encourages iterative improvement toward perfect scores
+- Paragraphs with all score 5 labels appear "clean" with no comment bars
+
+### Test Markers for Development
+
+You can force specific scores by adding special markers to paragraph text:
+
+| Marker | Label | Score | Severity | Effect |
+|--------|-------|-------|----------|--------|
+| `XXXA` | Actionability | 1 | Red | Critical actionability issue |
+| `YYYA` | Actionability | 3 | Yellow | Moderate actionability concern |
+| `ZZZA` | Actionability | 5 | None | Perfect actionability (hidden) |
+| `XXXH` | Helpfulness | 1 | Red | Critical helpfulness issue |
+| `YYYH` | Helpfulness | 3 | Yellow | Moderate helpfulness concern |
+| `ZZZH` | Helpfulness | 5 | None | Perfect helpfulness (hidden) |
+| `XXXG` | Grounding | 1 | Red | Critical grounding issue |
+| `YYYG` | Grounding | 3 | Yellow | Moderate grounding concern |
+| `ZZZG` | Grounding | 5 | None | Perfect grounding (hidden) |
+| `XXXV` | Verifiability | 1 | Red | Critical verifiability issue |
+| `YYYV` | Verifiability | 3 | Yellow | Moderate verifiability concern |
+| `ZZZV` | Verifiability | 5 | None | Perfect verifiability (hidden) |
+
+**Important**: Test markers **override monotonic behavior**. A marker will force its score even if the previous score was higher.
+
+**Example Usage**:
+```
+This paragraph has poor actionability and helpfulness. XXXA XXXH
+→ Shows red comment bar with Actionability and Helpfulness both at score 1
+
+This one is moderate across all dimensions. YYYA YYYH YYYG YYYV
+→ Shows yellow comment bar with all four labels at score 3
+
+Perfect paragraph! ZZZA ZZZH ZZZG ZZZV
+→ No comment bar (all scores are 5, hidden)
+```
+
+### Replacing the Mock Function
+
+To integrate with a real API endpoint, simply replace the `getComments()` function in `src/ReviewComponent.jsx`:
+
+```javascript
+const getComments = async (paragraphs) => {
+  const response = await fetch('YOUR_API_ENDPOINT', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paragraphs })
+  });
+  return await response.json();
+};
+```
+
+The API should return an object with this structure:
+```javascript
+{
+  paragraphId: {
+    Actionability: { score: 1-5, text: "feedback text" },
+    Helpfulness: { score: 1-5, text: "feedback text" },
+    Grounding: { score: 1-5, text: "feedback text" },
+    Verifiability: { score: 1-5, text: "feedback text" }
+  }
+}
+```
+
 ## Project Structure
 
 ```
