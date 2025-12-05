@@ -1,38 +1,40 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 
-// Mock comment data - in a real app, this would come from an API
-const initialComments = {
-  1: [
-    {
-      severity: 'yellow',
-      label: 'Actionability',
-      text: 'The comment gives concrete advice about changes that would improve the paper, but it could be better.'
-    },
-    {
-      severity: 'yellow',
-      label: 'Helpfulness',
-      text: 'This is not a very helpful comment.'
-    }
-  ],
-  2: [
-    {
-      severity: 'red',
-      label: 'Actionability',
-      text: 'The comment gives concrete advice about changes that would improve the paper, but it could be better.'
-    },
-    {
-      severity: 'yellow',
-      label: 'Helpfulness',
-      text: 'This is not a very helpful comment.'
-    }
-  ],
-  4: [
-    {
-      severity: 'yellow',
-      label: 'Grounding',
-      text: 'The comment should provide more specific evidence from the paper.'
-    }
-  ]
+// Mock function to generate comments for paragraphs
+// In a real app, this would be an HTTP endpoint call
+const getComments = async (paragraphs) => {
+  // paragraphs: array of {id, content}
+  // Returns: object keyed by paragraph id with comment data
+
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  const results = {};
+
+  paragraphs.forEach(para => {
+    // Generate random scores for demo purposes
+    const labels = ['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'];
+    const comment = {};
+
+    labels.forEach(label => {
+      const score = Math.floor(Math.random() * 5) + 1; // 1-5
+      comment[label] = {
+        score: score,
+        text: `${label} feedback for paragraph: Score ${score}/5. ${para.content.substring(0, 50)}...`
+      };
+    });
+
+    results[para.id] = comment;
+  });
+
+  return results;
+};
+
+// Helper function to convert score to severity
+const scoreToSeverity = (score) => {
+  if (score <= 2) return 'red';
+  if (score <= 4) return 'yellow';
+  return 'none';
 };
 
 const initialReviewText = `Limited insights from the analysis. I appreciate the attempt of the authors to propose a new algorithm to analyze the impact of the context to reasoning path of LLMs, however, beyond the algorithm itself I don't see much new insights from the analysis. For example, one main finding from the paper is "good context can lead to incorrect answers and bad context can lead to correct answers,", this is not new and has been revealed from previous work (e.g., [1]). I would like to see the authors do more in-depth analysis with their method.
@@ -60,9 +62,8 @@ Have the authors considered the impact of different types of OOD data? For examp
 
 export default function ReviewComponent() {
   const [reviewText, setReviewText] = useState(initialReviewText);
-  const [originalText, setOriginalText] = useState(initialReviewText);
-  const [isModified, setIsModified] = useState(false);
-  const [comments, setComments] = useState(initialComments);
+  const [originalText, setOriginalText] = useState(''); // Start empty so update button is active
+  const [isModified, setIsModified] = useState(true); // Start as modified
   const [openCommentBar, setOpenCommentBar] = useState(null); // Start with no comment bar open
   const [paragraphPositions, setParagraphPositions] = useState({});
   const [scrollTop, setScrollTop] = useState(0);
@@ -85,30 +86,23 @@ export default function ReviewComponent() {
   const lastScrolledCommentRef = useRef(null);
   const justClosedCommentRef = useRef(null);
 
-  // Initialize paragraph IDs and comments on first render
+  // Initialize paragraph IDs on first render
   useEffect(() => {
     const initialParagraphTexts = getParagraphs(initialReviewText);
 
-    // Create initial paragraphs with stable IDs
+    // Create initial paragraphs with stable IDs and empty originalContent
+    // This makes all paragraphs appear as "new" with dotted rectangles
     const withIds = initialParagraphTexts.map((content, index) => ({
       id: index,
-      originalContent: content,
+      originalContent: '', // Empty to show dotted rectangles
       currentContent: content
     }));
 
     setParagraphsWithIds(withIds);
     nextParagraphIdRef.current = initialParagraphTexts.length;
 
-    // Convert index-based comments to ID-based comments
-    const commentsById = {};
-    Object.keys(initialComments).forEach(indexStr => {
-      const index = parseInt(indexStr);
-      if (index < initialParagraphTexts.length) {
-        commentsById[index] = initialComments[indexStr];
-      }
-    });
-
-    setCommentsByParagraphId(commentsById);
+    // Start with no comments
+    setCommentsByParagraphId({});
 
     if (lastUpdateParagraphs.length === 0) {
       setLastUpdateParagraphs(initialParagraphTexts);
@@ -458,22 +452,83 @@ export default function ReviewComponent() {
     }
   }, [isDragging, reviewTextWidth]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!isModified) return;
 
-    // Mock function to compute new comments
-    // In a real app, this would call an API
-    console.log('Updating comments for text:', reviewText);
+    // Collect modified paragraphs
+    const modifiedParagraphs = paragraphsWithIds
+      .filter(p => p.currentContent !== p.originalContent)
+      .map(p => ({
+        id: p.id,
+        content: p.currentContent
+      }));
+
+    console.log('Updating comments for modified paragraphs:', modifiedParagraphs);
+
+    // Call getComments function (mock or API endpoint)
+    const commentResults = await getComments(modifiedParagraphs);
+
+    // Transform API response to internal comment format with severity
+    const newComments = {};
+
+    Object.keys(commentResults).forEach(paragraphIdStr => {
+      const paragraphId = parseInt(paragraphIdStr);
+      const commentData = commentResults[paragraphIdStr];
+
+      // Transform each label's data into the internal format
+      const formattedComments = [];
+      const labels = ['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'];
+
+      labels.forEach(label => {
+        if (commentData[label]) {
+          const { score, text } = commentData[label];
+          const severity = scoreToSeverity(score);
+
+          // Only include items that are not severity 'none'
+          if (severity !== 'none') {
+            formattedComments.push({
+              severity: severity,
+              label: label,
+              text: text
+            });
+          }
+        }
+      });
+
+      // Only add comments for this paragraph if there are any non-'none' items
+      if (formattedComments.length > 0) {
+        newComments[paragraphId] = formattedComments;
+      }
+    });
+
+    // Merge new comments with existing comments
+    // Start with existing comments, then remove old comments for modified paragraphs,
+    // and finally add new comments for those modified paragraphs
+    const updatedComments = { ...commentsByParagraphId };
+
+    // Remove old comments for all modified paragraphs
+    modifiedParagraphs.forEach(p => {
+      delete updatedComments[p.id];
+    });
+
+    // Add new comments (only for paragraphs that have non-'none' items)
+    Object.assign(updatedComments, newComments);
+
+    setCommentsByParagraphId(updatedComments);
+
+    // Update paragraph originalContent to match currentContent
+    const updatedParagraphs = paragraphsWithIds.map(p => ({
+      ...p,
+      originalContent: p.currentContent
+    }));
+    setParagraphsWithIds(updatedParagraphs);
 
     // Store current paragraphs for comparison
     setLastUpdateParagraphs(getParagraphs(reviewText));
 
-    // Simulate comment update
+    // Update original text and deactivate button
     setOriginalText(reviewText);
     setIsModified(false);
-
-    // You could update comments here based on the new text
-    // For now, keeping existing comments
   };
 
   const handleCommentBarClick = (paragraphId) => {
