@@ -639,6 +639,109 @@ export default function ReviewComponent() {
   const paragraphs = getParagraphs(reviewText);
   const textBlocks = parseTextBlocks(reviewText);
 
+  // Calculate statistics for comment counts
+  const getCommentStats = () => {
+    const stats = {
+      Actionability: 0,
+      Helpfulness: 0,
+      Grounding: 0,
+      Verifiability: 0,
+      Critical: 0,
+      Moderate: 0
+    };
+
+    Object.values(commentsByParagraphId).forEach(comments => {
+      const visibleComments = comments.filter(c => c.severity !== 'none');
+      visibleComments.forEach(comment => {
+        // Count by label
+        if (stats.hasOwnProperty(comment.label)) {
+          stats[comment.label]++;
+        }
+        // Count by severity
+        if (comment.severity === 'red') stats.Critical++;
+        if (comment.severity === 'yellow') stats.Moderate++;
+      });
+    });
+
+    return stats;
+  };
+
+  // Find first paragraph with a specific label or severity
+  // If afterParagraphId is provided, search starts after that paragraph
+  // If no match found after that paragraph, wraps around to the first match
+  const findFirstParagraphWith = (type, value, afterParagraphId = null) => {
+    const matchesCriteria = (paragraph) => {
+      const comments = commentsByParagraphId[paragraph.id];
+      if (!comments) return false;
+
+      const visibleComments = comments.filter(c => c.severity !== 'none');
+      if (visibleComments.length === 0) return false;
+
+      if (type === 'label') {
+        return visibleComments.some(c => c.label === value);
+      } else if (type === 'severity') {
+        return visibleComments.some(c => c.severity === value);
+      }
+      return false;
+    };
+
+    // If no afterParagraphId, just find first match
+    if (afterParagraphId === null) {
+      for (const paragraph of paragraphsWithIds) {
+        if (matchesCriteria(paragraph)) {
+          return paragraph;
+        }
+      }
+      return null;
+    }
+
+    // Find the index of the paragraph to search after
+    const afterIndex = paragraphsWithIds.findIndex(p => p.id === afterParagraphId);
+    if (afterIndex === -1) {
+      // If afterParagraphId not found, just find first match
+      for (const paragraph of paragraphsWithIds) {
+        if (matchesCriteria(paragraph)) {
+          return paragraph;
+        }
+      }
+      return null;
+    }
+
+    // Search for next match after the specified paragraph
+    for (let i = afterIndex + 1; i < paragraphsWithIds.length; i++) {
+      if (matchesCriteria(paragraphsWithIds[i])) {
+        return paragraphsWithIds[i];
+      }
+    }
+
+    // No match found after, wrap around to first match
+    for (const paragraph of paragraphsWithIds) {
+      if (matchesCriteria(paragraph)) {
+        return paragraph;
+      }
+    }
+
+    return null;
+  };
+
+  // Get first 7 words of paragraph text
+  const getFirst7Words = (text) => {
+    const words = text.split(/\s+/).slice(0, 7);
+    return words.join(' ') + '...';
+  };
+
+  // Handle clicking on a stat to scroll to next paragraph with that type
+  // If a comment bar is open, search after it; otherwise start from beginning
+  const handleStatClick = (type, value) => {
+    const paragraph = findFirstParagraphWith(type, value, openCommentBar);
+    if (paragraph) {
+      setOpenCommentBar(paragraph.id);
+      // Scroll will be handled by the existing useEffect
+    }
+  };
+
+  const stats = getCommentStats();
+
   return (
     <div className="bg-white box-border flex flex-col gap-[21px] items-center justify-center px-[22px] py-[15px] h-screen w-full">
       {/* UPDATE Button */}
@@ -658,6 +761,83 @@ export default function ReviewComponent() {
       <p className="absolute font-normal text-[20px] text-black top-[15px] left-[22px] w-[1036px]">
         Edit your review:
       </p>
+
+      {/* Statistics Bar */}
+      <div className="absolute font-normal text-[12px] text-black top-[15px] right-[22px] flex gap-[15px]">
+        {/* Label counts */}
+        {['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'].map(label => {
+          const count = stats[label];
+          // Find next paragraph that would be navigated to (after current open comment, or first if none open)
+          const paragraph = count > 0 ? findFirstParagraphWith('label', label, openCommentBar) : null;
+
+          return (
+            <span key={label} className="relative group">
+              {count > 0 ? (
+                <button
+                  onClick={() => handleStatClick('label', label)}
+                  className="cursor-pointer hover:underline"
+                >
+                  {label} ({count})
+                </button>
+              ) : (
+                <span className="text-gray-400">{label} ({count})</span>
+              )}
+              {paragraph && count > 0 && (
+                <span className="absolute hidden group-hover:block bg-black text-white text-[10px] px-[6px] py-[3px] rounded whitespace-nowrap top-full left-0 mt-1 z-50">
+                  {getFirst7Words(paragraph.currentContent)}
+                </span>
+              )}
+            </span>
+          );
+        })}
+
+        {/* Severity counts */}
+        <span className="relative group">
+          {stats.Critical > 0 ? (
+            <button
+              onClick={() => handleStatClick('severity', 'red')}
+              className="cursor-pointer hover:underline"
+              style={{ color: '#cc5656' }}
+            >
+              Critical ({stats.Critical})
+            </button>
+          ) : (
+            <span className="text-gray-400">Critical ({stats.Critical})</span>
+          )}
+          {stats.Critical > 0 && (() => {
+            // Find next paragraph that would be navigated to
+            const paragraph = findFirstParagraphWith('severity', 'red', openCommentBar);
+            return paragraph && (
+              <span className="absolute hidden group-hover:block bg-black text-white text-[10px] px-[6px] py-[3px] rounded whitespace-nowrap top-full left-0 mt-1 z-50">
+                {getFirst7Words(paragraph.currentContent)}
+              </span>
+            );
+          })()}
+        </span>
+
+        <span className="relative group">
+          {stats.Moderate > 0 ? (
+            <button
+              onClick={() => handleStatClick('severity', 'yellow')}
+              className="cursor-pointer hover:underline"
+              style={{ color: '#ffc700' }}
+            >
+              Moderate ({stats.Moderate})
+            </button>
+          ) : (
+            <span className="text-gray-400">Moderate ({stats.Moderate})</span>
+          )}
+          {stats.Moderate > 0 && (() => {
+            // Find next paragraph that would be navigated to
+            const paragraph = findFirstParagraphWith('severity', 'yellow', openCommentBar);
+            return paragraph && (
+              <span className="absolute hidden group-hover:block bg-black text-white text-[10px] px-[6px] py-[3px] rounded whitespace-nowrap top-full left-0 mt-1 z-50">
+                {getFirst7Words(paragraph.currentContent)}
+              </span>
+            );
+          })()}
+        </span>
+      </div>
 
       {/* Main Viewport */}
       <div
