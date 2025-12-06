@@ -6,7 +6,27 @@ const generateWeightedScore = () => {
 };
 
 // Mock function to generate comments for paragraphs
-// In a real app, this would be an HTTP endpoint call
+// In a real app, this would be an HTTP endpoint call:
+// const getComments = async (paragraphs) => {
+//   const response = await fetch('YOUR_API_ENDPOINT', {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ paragraphs })
+//   });
+//   return await response.json();
+// };
+//
+// The API should return an object with this structure:
+//
+// {
+//   paragraphId: {
+//     Actionability: { score: 1-5, text: "feedback text" },
+//     Helpfulness: { score: 1-5, text: "feedback text" },
+//     Grounding: { score: 1-5, text: "feedback text" },
+//     Verifiability: { score: 1-5, text: "feedback text" }
+//   }
+// }
+//
 const getComments = async (paragraphs) => {
   // paragraphs: array of {id, content}
   // Returns: object keyed by paragraph id with comment data
