@@ -125,6 +125,7 @@ export default function ReviewComponent() {
   const [paragraphsWithIds, setParagraphsWithIds] = useState([]);
   const nextParagraphIdRef = useRef(0);
   const [commentsByParagraphId, setCommentsByParagraphId] = useState({});
+  const [commentPositions, setCommentPositions] = useState({}); // Store calculated positions for each paragraph
 
   const textareaRef = useRef(null);
   const hiddenTextRef = useRef(null);
@@ -377,48 +378,77 @@ export default function ReviewComponent() {
     if (previousOpenCommentRef.current !== null && openCommentBar === null) {
       // A comment bar was just closed
       justClosedCommentRef.current = previousOpenCommentRef.current;
+
+      // Clear the stored position so it gets recalculated on next open
+      setCommentPositions(prev => {
+        const updated = { ...prev };
+        delete updated[previousOpenCommentRef.current];
+        return updated;
+      });
     }
     previousOpenCommentRef.current = openCommentBar;
   }, [openCommentBar]);
 
+  // Calculate comment position after scroll completes
+  useEffect(() => {
+    if (openCommentBar !== null && commentPositions[openCommentBar] === undefined) {
+      // Wait for scroll animation to complete before calculating position
+      const positionTimer = setTimeout(() => {
+        const paragraphIndex = paragraphsWithIds.findIndex(p => p.id === openCommentBar);
+        if (paragraphIndex < 0) return;
+
+        const position = paragraphPositions[paragraphIndex];
+        if (!position) return;
+
+        const paragraphComments = commentsByParagraphId[openCommentBar];
+        if (!paragraphComments) return;
+
+        const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
+        if (visibleComments.length === 0) return;
+
+        const commentHeight = getTotalCommentHeight(visibleComments);
+        const centeredTop = position.top + 10 + (position.height - commentHeight) / 2;
+
+        // Get current viewport state after scroll completes
+        const viewportHeight = scrollContainerRef.current?.clientHeight || 0;
+        const currentScrollTop = scrollContainerRef.current?.scrollTop || 0;
+
+        // Calculate visible bounds
+        const minTop = currentScrollTop + 10;
+        const maxTop = currentScrollTop + viewportHeight - commentHeight - 10;
+
+        // Clamp position to keep comments within visible viewport
+        const finalTop = Math.max(minTop, Math.min(centeredTop, maxTop));
+
+        // Store this position
+        setCommentPositions(prev => ({ ...prev, [openCommentBar]: finalTop }));
+      }, 400); // Wait for scroll animation (100ms delay + smooth scroll)
+
+      return () => clearTimeout(positionTimer);
+    }
+  }, [openCommentBar, paragraphsWithIds, paragraphPositions, commentsByParagraphId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Scroll to center the clicked comment bar after layout settles (only once per click)
   useEffect(() => {
     if (openCommentBar === null) {
-      // When closing a comment bar, scroll to center the closed bar after resize
-      if (justClosedCommentRef.current !== null &&
-          paragraphPositions[justClosedCommentRef.current] &&
-          scrollContainerRef.current) {
-        const scrollTimer = setTimeout(() => {
-          const position = paragraphPositions[justClosedCommentRef.current];
-          const scrollContainer = scrollContainerRef.current;
-          const containerHeight = scrollContainer.clientHeight;
-
-          // Calculate the center of the comment bar relative to the scrollable content
-          const commentBarCenter = position.top + 10 + (position.height / 2);
-
-          // Scroll so the comment bar center aligns with viewport center
-          const targetScrollTop = commentBarCenter - (containerHeight / 2);
-
-          scrollContainer.scrollTo({
-            top: Math.max(0, targetScrollTop),
-            behavior: 'smooth'
-          });
-
-          // Clear the just closed ref
-          justClosedCommentRef.current = null;
-        }, 100); // Wait 100ms for layout to settle
-
-        return () => clearTimeout(scrollTimer);
-      }
-      // Reset when closing a comment bar so clicking the same bar again will scroll
+      // When closing a comment bar, just reset the scroll ref
+      // Don't scroll - let the view stay where it is
+      justClosedCommentRef.current = null;
       lastScrolledCommentRef.current = null;
     } else if (openCommentBar !== lastScrolledCommentRef.current &&
                paragraphPositions[openCommentBar] &&
                scrollContainerRef.current) {
       // Opening a comment bar - scroll to center it
       const scrollTimer = setTimeout(() => {
+        // Re-check that this comment is still open (user might have clicked again)
+        if (openCommentBar === null) return;
+
         const position = paragraphPositions[openCommentBar];
+        if (!position) return; // Position not available yet
+
         const scrollContainer = scrollContainerRef.current;
+        if (!scrollContainer) return;
+
         const containerHeight = scrollContainer.clientHeight;
 
         // Calculate the center of the comment bar relative to the scrollable content
@@ -427,14 +457,18 @@ export default function ReviewComponent() {
         // Scroll so the comment bar center aligns with viewport center
         const targetScrollTop = commentBarCenter - (containerHeight / 2);
 
+        // Clamp to valid scroll range
+        const maxScrollTop = scrollContainer.scrollHeight - containerHeight;
+        const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
+
         scrollContainer.scrollTo({
-          top: Math.max(0, targetScrollTop),
+          top: clampedScrollTop,
           behavior: 'smooth'
         });
 
         // Mark this comment as scrolled
         lastScrolledCommentRef.current = openCommentBar;
-      }, 100); // Wait 100ms for layout to settle
+      }, 200); // Wait 200ms for layout to settle (especially after close/reopen)
 
       return () => clearTimeout(scrollTimer);
     }
@@ -978,13 +1012,24 @@ export default function ReviewComponent() {
                   // Filter out 'none' severity items (score 5) at display time
                   const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
 
+                  // Use stored position (calculated after scroll completes) or centered position as fallback
+                  let commentTop = 0;
+                  if (position) {
+                    if (commentPositions[openCommentBar] !== undefined) {
+                      // Use stored position (calculated with viewport bounds after scroll)
+                      commentTop = commentPositions[openCommentBar];
+                    } else {
+                      // Temporary centered position while waiting for bounds calculation
+                      const commentHeight = getTotalCommentHeight(visibleComments);
+                      commentTop = position.top + 10 + (position.height - commentHeight) / 2;
+                    }
+                  }
+
                   return visibleComments.length > 0 && (
                     <div
                       className="absolute left-0 flex flex-col gap-[11px]"
                       style={{
-                        top: position
-                          ? `${position.top + 10 + (position.height - getTotalCommentHeight(visibleComments)) / 2}px`
-                          : '0px'
+                        top: `${commentTop}px`
                       }}
                     >
                       {visibleComments
