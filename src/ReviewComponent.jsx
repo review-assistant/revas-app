@@ -653,9 +653,19 @@ export default function ReviewComponent() {
     const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
     if (visibleComments.length === 0) return null;
 
-    // Red if any visible comments are red, yellow otherwise
-    const hasRed = visibleComments.some(c => c.severity === 'red');
-    return hasRed ? '#cc5656' : '#ffc700';
+    // Return true if there are any visible comments (proportional rendering handles all cases)
+    return true;
+  };
+
+  const getCommentSeverityCounts = (paragraphId) => {
+    const paragraphComments = commentsByParagraphId[paragraphId];
+    if (!paragraphComments) return { red: 0, yellow: 0 };
+
+    const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
+    const redCount = visibleComments.filter(c => c.severity === 'red').length;
+    const yellowCount = visibleComments.filter(c => c.severity === 'yellow').length;
+
+    return { red: redCount, yellow: yellowCount };
   };
 
   const isParagraphModified = (paragraphId) => {
@@ -960,12 +970,52 @@ export default function ReviewComponent() {
                     onClick={() => handleCommentBarClick(id)}
                     className="absolute w-[16px] cursor-pointer transition-all duration-200 z-10"
                     style={{
-                      backgroundColor: color || 'transparent',
+                      backgroundColor: 'transparent',
                       top: `${position.top + 10}px`,
                       height: `${position.height}px`,
                       right: isOpen ? '-28.5px' : '-8.5px'
                     }}
                   >
+                    {/* Proportional red and yellow bars (works for pure or mixed) */}
+                    {color && (() => {
+                      const counts = getCommentSeverityCounts(id);
+                      const total = counts.red + counts.yellow;
+                      if (total === 0) return null;
+
+                      const redProportion = counts.red / total;
+                      const redHeight = position.height * redProportion;
+
+                      return (
+                        <svg
+                          className="absolute left-0 top-0 pointer-events-none"
+                          width="16"
+                          height={position.height}
+                          style={{ height: '100%' }}
+                        >
+                          {/* Red bar (top portion, 0% if no red comments) */}
+                          {counts.red > 0 && (
+                            <rect
+                              x="0"
+                              y="0"
+                              width="16"
+                              height={redHeight}
+                              fill="#cc5656"
+                            />
+                          )}
+                          {/* Yellow bar (bottom portion, 0% if no yellow comments) */}
+                          {counts.yellow > 0 && (
+                            <rect
+                              x="0"
+                              y={redHeight}
+                              width="16"
+                              height={position.height - redHeight}
+                              fill="#ffc700"
+                            />
+                          )}
+                        </svg>
+                      );
+                    })()}
+
                     {isModified && (
                       <svg
                         className="absolute left-0 top-0 pointer-events-none"
