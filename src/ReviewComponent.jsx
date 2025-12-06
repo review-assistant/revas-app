@@ -450,21 +450,33 @@ export default function ReviewComponent() {
         if (!scrollContainer) return;
 
         const containerHeight = scrollContainer.clientHeight;
+        const currentScrollTop = scrollContainer.scrollTop;
 
-        // Calculate the center of the comment bar relative to the scrollable content
-        const commentBarCenter = position.top + 10 + (position.height / 2);
+        // Check if comment bar is fully visible in viewport
+        const barTop = position.top + 10;
+        const barBottom = position.top + 10 + position.height;
+        const viewportTop = currentScrollTop;
+        const viewportBottom = currentScrollTop + containerHeight;
 
-        // Scroll so the comment bar center aligns with viewport center
-        const targetScrollTop = commentBarCenter - (containerHeight / 2);
+        const isFullyVisible = barTop >= viewportTop && barBottom <= viewportBottom;
 
-        // Clamp to valid scroll range
-        const maxScrollTop = scrollContainer.scrollHeight - containerHeight;
-        const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
+        // Only scroll if comment bar is not fully visible
+        if (!isFullyVisible) {
+          // Calculate the center of the comment bar relative to the scrollable content
+          const commentBarCenter = position.top + 10 + (position.height / 2);
 
-        scrollContainer.scrollTo({
-          top: clampedScrollTop,
-          behavior: 'smooth'
-        });
+          // Scroll so the comment bar center aligns with viewport center
+          const targetScrollTop = commentBarCenter - (containerHeight / 2);
+
+          // Clamp to valid scroll range
+          const maxScrollTop = scrollContainer.scrollHeight - containerHeight;
+          const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
+
+          scrollContainer.scrollTo({
+            top: clampedScrollTop,
+            behavior: 'smooth'
+          });
+        }
 
         // Mark this comment as scrolled
         lastScrolledCommentRef.current = openCommentBar;
