@@ -21,8 +21,7 @@
 const CONFIG = {
   // Mode configuration
   // Set to 'mock' for local testing without backend, 'backend' for real API calls
-  // MODE: 'backend',             // 'mock' or 'backend'
-  MODE: 'mock',             // 'mock' or 'backend'
+  MODE: 'backend',             // 'mock' or 'backend'
 
   // API endpoint configuration
   API_BASE_URL: 'http://10.127.105.10:8888',
