@@ -32,7 +32,8 @@ const CONFIG = {
 
   // Polling configuration
   POLL_INTERVAL_MS: 2000,      // 2 seconds between status checks
-  MAX_POLLS: 150,                      // Max 5 minutes of polling per job
+  BASE_TIMEOUT_SEC: 30,        // Base timeout for any job (30 seconds)
+  TIMEOUT_PER_PARAGRAPH_SEC: 120, // Timeout per paragraph (2 minutes)
 
   // Retry configuration
   MAX_RETRIES: 3,              // Number of retries for failed requests
@@ -257,17 +258,22 @@ async function pollJobResult(jobId) {
 /**
  * Wait for job to complete by polling
  * @param {string} jobId - The job ID to wait for
+ * @param {number} paragraphCount - Number of paragraphs in the batch (for timeout calculation)
  * @returns {Promise<Object>} - The completed job result
  */
-async function waitForJobCompletion(jobId) {
+async function waitForJobCompletion(jobId, paragraphCount) {
+  // Calculate dynamic timeout based on batch size
+  const totalTimeoutSec = CONFIG.BASE_TIMEOUT_SEC + (paragraphCount * CONFIG.TIMEOUT_PER_PARAGRAPH_SEC);
+  const maxPolls = Math.ceil((totalTimeoutSec * 1000) / CONFIG.POLL_INTERVAL_MS);
+
   let polls = 0;
 
-  logInfo(`Waiting for job ${jobId} to complete...`);
+  logInfo(`Waiting for job ${jobId} to complete (${paragraphCount} paragraphs, timeout: ${totalTimeoutSec}s)...`);
 
-  while (polls < CONFIG.MAX_POLLS) {
+  while (polls < maxPolls) {
     const result = await pollJobResult(jobId);
 
-    logDebug(`Job ${jobId} status: ${result.status} (poll ${polls + 1}/${CONFIG.MAX_POLLS})`);
+    logDebug(`Job ${jobId} status: ${result.status} (poll ${polls + 1}/${maxPolls})`);
 
     if (result.status === 'completed') {
       logInfo(`Job ${jobId} completed successfully`);
@@ -283,8 +289,8 @@ async function waitForJobCompletion(jobId) {
     polls++;
   }
 
-  logError(`Job ${jobId} timed out after ${CONFIG.MAX_POLLS} polls`);
-  throw new Error(`Job timed out after ${CONFIG.MAX_POLLS} polls`);
+  logError(`Job ${jobId} timed out after ${maxPolls} polls (${totalTimeoutSec}s)`);
+  throw new Error(`Job timed out after ${maxPolls} polls (${totalTimeoutSec}s)`);
 }
 
 /**
@@ -309,8 +315,8 @@ export async function processBatch(batch, batchIndex) {
       const jobInfo = await createCommentsJob(points);
       logInfo(`Batch ${batchIndex + 1}: Job created ${jobInfo.job_id} (status: ${jobInfo.status})`);
 
-      // Step 2: Wait for completion
-      const result = await waitForJobCompletion(jobInfo.job_id);
+      // Step 2: Wait for completion (timeout scales with batch size)
+      const result = await waitForJobCompletion(jobInfo.job_id, batch.length);
 
       // Step 3: Return the result with batch info and retry statistics
       return {
@@ -540,7 +546,8 @@ Configuration:
   API URL:           ${CONFIG.API_BASE_URL}
   Batch Size:        ${CONFIG.API_BATCH_SIZE}
   Poll Interval:     ${CONFIG.POLL_INTERVAL_MS}ms
-  Max Polls:         ${CONFIG.MAX_POLLS}
+  Base Timeout:      ${CONFIG.BASE_TIMEOUT_SEC}s
+  Timeout/Paragraph: ${CONFIG.TIMEOUT_PER_PARAGRAPH_SEC}s
   Max Retries:       ${CONFIG.MAX_RETRIES}
   Default Log Level: ${CONFIG.LOG_LEVEL}
 `);
