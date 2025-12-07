@@ -289,12 +289,14 @@ async function waitForJobCompletion(jobId) {
 
 /**
  * Process a single batch of paragraphs with retry logic
+ * Exported for use in tests to bypass internal batching
  * @param {Array<{id: number|string, content: string}>} batch - Batch of paragraphs
  * @param {number} batchIndex - Index of this batch
  * @returns {Promise<Object>} - Results for this batch
  */
-async function processBatch(batch, batchIndex) {
+export async function processBatch(batch, batchIndex) {
   let retries = 0;
+  let retryTimeMs = 0;
 
   while (retries <= CONFIG.MAX_RETRIES) {
     try {
@@ -310,11 +312,13 @@ async function processBatch(batch, batchIndex) {
       // Step 2: Wait for completion
       const result = await waitForJobCompletion(jobInfo.job_id);
 
-      // Step 3: Return the result with batch info
+      // Step 3: Return the result with batch info and retry statistics
       return {
         batchIndex,
         batch,
-        result
+        result,
+        retryCount: retries,
+        retryTimeMs: retryTimeMs
       };
 
     } catch (error) {
@@ -323,6 +327,7 @@ async function processBatch(batch, batchIndex) {
       if (retries <= CONFIG.MAX_RETRIES) {
         logWarn(`Batch ${batchIndex + 1} failed, retrying in ${CONFIG.RETRY_DELAY_MS}ms...`, { error: error.message });
         await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY_MS));
+        retryTimeMs += CONFIG.RETRY_DELAY_MS;
       } else {
         logError(`Batch ${batchIndex + 1} failed after ${CONFIG.MAX_RETRIES} retries`, { error: error.message });
         throw error;

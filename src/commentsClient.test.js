@@ -11,7 +11,7 @@
  *   node src/commentsClient.test.js --test all
  */
 
-import { getComments, SAMPLE_REVIEW_TEXT } from './commentsClient.js';
+import { getComments, processBatch, SAMPLE_REVIEW_TEXT } from './commentsClient.js';
 
 // ============================================================================
 // TEST CONFIGURATION
@@ -28,6 +28,11 @@ const TEST_CONFIG = {
 
   // Number of times to run each batch size for averaging
   BENCHMARK_RUNS: 1,
+
+  // Concurrency test configuration
+  CONCURRENCY_LEVELS: [1, 2, 4, 8, 16],  // Number of concurrent batches to test
+  CONCURRENCY_BATCH_SIZES: [4, 8, 16],   // Batch sizes to test concurrency at
+  CONCURRENCY_TOTAL_PARAGRAPHS: 64,      // Total paragraphs for concurrency test
 
   // Use sample review text from commentsClient
   USE_SAMPLE_DATA: true
@@ -101,6 +106,72 @@ function printHeader(title) {
   console.log(title);
   printDivider();
   console.log('');
+}
+
+/**
+ * Process batches with limited concurrency
+ * Uses processBatch() directly to bypass getComments() internal batching
+ * @param {Array} batches - Array of paragraph batches to process
+ * @param {number} concurrency - Maximum number of concurrent batches
+ * @returns {Promise<Array>} - Array of results with timing info
+ */
+async function processBatchesWithConcurrency(batches, concurrency) {
+  const results = [];
+  const queue = batches.map((batch, idx) => ({ batch, originalIndex: idx }));
+  let completed = 0;
+  let failed = 0;
+
+  // Process batches in chunks of 'concurrency' size
+  while (queue.length > 0 || completed + failed < batches.length) {
+    // Get next chunk of batches to process
+    const chunk = queue.splice(0, concurrency);
+
+    if (chunk.length === 0) break;
+
+    // Process this chunk in parallel using processBatch() directly
+    const chunkPromises = chunk.map(async ({ batch, originalIndex }) => {
+      const batchStart = Date.now();
+
+      try {
+        // Call processBatch directly - sends exactly this batch to API without re-batching
+        const result = await processBatch(batch, originalIndex);
+        const batchEnd = Date.now();
+
+        return {
+          success: true,
+          duration: batchEnd - batchStart,
+          batchSize: batch.length,
+          retryCount: result.retryCount || 0,
+          retryTimeMs: result.retryTimeMs || 0,
+          result
+        };
+      } catch (error) {
+        const batchEnd = Date.now();
+
+        return {
+          success: false,
+          duration: batchEnd - batchStart,
+          batchSize: batch.length,
+          retryCount: 0,
+          retryTimeMs: 0,
+          error: error.message
+        };
+      }
+    });
+
+    const chunkResults = await Promise.all(chunkPromises);
+
+    chunkResults.forEach(result => {
+      results.push(result);
+      if (result.success) {
+        completed++;
+      } else {
+        failed++;
+      }
+    });
+  }
+
+  return results;
 }
 
 // ============================================================================
@@ -260,25 +331,35 @@ async function runBenchmarkTest() {
       try {
         const startTime = Date.now();
 
-        // Create batches manually to control batch size
+        // Create batches manually to control exact batch size sent to API
         const batches = [];
         for (let i = 0; i < testParagraphs.length; i += batchSize) {
           batches.push(testParagraphs.slice(i, i + batchSize));
         }
 
-        // Process batches in parallel (simulating the actual behavior)
-        const batchPromises = batches.map(async (batch) => {
-          return await getComments(batch);
+        // Process batches in parallel using processBatch() directly
+        // This bypasses getComments() internal batching and sends exactly these batch sizes to API
+        const batchPromises = batches.map(async (batch, index) => {
+          return await processBatch(batch, index);
         });
 
-        await Promise.all(batchPromises);
+        const batchResults = await Promise.all(batchPromises);
 
         const endTime = Date.now();
         const totalTime = endTime - startTime;
 
+        // Collect retry statistics
+        const totalRetries = batchResults.reduce((sum, r) => sum + (r.retryCount || 0), 0);
+        const totalRetryTime = batchResults.reduce((sum, r) => sum + (r.retryTimeMs || 0), 0);
+        const batchesWithRetries = batchResults.filter(r => (r.retryCount || 0) > 0).length;
+
         runTimes.push(totalTime);
 
         console.log(`    Completed in ${formatTime(totalTime)}`);
+        if (totalRetries > 0) {
+          const retryPercentage = (totalRetryTime / totalTime) * 100;
+          console.log(`    🔄 Retries: ${totalRetries} (${batchesWithRetries} batches, ${formatTime(totalRetryTime)}, ${retryPercentage.toFixed(1)}%)`);
+        }
 
       } catch (error) {
         console.error(`    ❌ Failed: ${error.message}`);
@@ -350,6 +431,235 @@ async function runBenchmarkTest() {
 }
 
 // ============================================================================
+// CONCURRENCY TEST
+// ============================================================================
+
+/**
+ * Test to find optimal concurrency level (number of parallel batches)
+ * Tests different concurrency levels at multiple batch sizes
+ */
+async function runConcurrencyTest() {
+  printHeader('CONCURRENCY TEST - Find Optimal Parallel Batch Count');
+
+  const baseParagraphs = parseReviewText(SAMPLE_REVIEW_TEXT);
+  const targetTotal = TEST_CONFIG.CONCURRENCY_TOTAL_PARAGRAPHS;
+
+  console.log('Concurrency Test Configuration:');
+  console.log(`  Base paragraphs available: ${baseParagraphs.length}`);
+  console.log(`  Target total paragraphs: ${targetTotal}`);
+  console.log(`  Concurrency levels to test: ${TEST_CONFIG.CONCURRENCY_LEVELS.join(', ')}`);
+  console.log(`  Batch sizes to test: ${TEST_CONFIG.CONCURRENCY_BATCH_SIZES.join(', ')}`);
+  console.log('');
+
+  const allResults = [];
+
+  for (const batchSize of TEST_CONFIG.CONCURRENCY_BATCH_SIZES) {
+    printHeader(`TESTING BATCH SIZE: ${batchSize}`);
+
+    const testParagraphs = replicateParagraphs(baseParagraphs, targetTotal);
+    const totalBatches = Math.ceil(testParagraphs.length / batchSize);
+
+    console.log(`Total paragraphs: ${testParagraphs.length}`);
+    console.log(`Total batches: ${totalBatches}`);
+    console.log('');
+
+    const batchSizeResults = [];
+
+    for (const concurrency of TEST_CONFIG.CONCURRENCY_LEVELS) {
+      console.log(`Testing concurrency: ${concurrency} parallel batches`);
+      printDivider('-', 60);
+
+      try {
+        // Create batches
+        const batches = [];
+        for (let i = 0; i < testParagraphs.length; i += batchSize) {
+          batches.push(testParagraphs.slice(i, i + batchSize));
+        }
+
+        const startTime = Date.now();
+
+        // Process with limited concurrency
+        const results = await processBatchesWithConcurrency(batches, concurrency);
+
+        const endTime = Date.now();
+        const totalTime = endTime - startTime;
+
+        // Analyze results
+        const successCount = results.filter(r => r.success).length;
+        const failureCount = results.filter(r => !r.success).length;
+        const successRate = (successCount / results.length) * 100;
+
+        const successfulTimes = results.filter(r => r.success).map(r => r.duration);
+        const batchStats = calculateStats(successfulTimes);
+
+        // Analyze retry statistics
+        const totalRetries = results.reduce((sum, r) => sum + r.retryCount, 0);
+        const totalRetryTime = results.reduce((sum, r) => sum + r.retryTimeMs, 0);
+        const batchesWithRetries = results.filter(r => r.retryCount > 0).length;
+        const retryPercentage = totalTime > 0 ? (totalRetryTime / totalTime) * 100 : 0;
+
+        batchSizeResults.push({
+          concurrency,
+          batchSize,
+          totalBatches,
+          successCount,
+          failureCount,
+          successRate,
+          totalTime,
+          batchStats,
+          totalRetries,
+          totalRetryTime,
+          batchesWithRetries,
+          retryPercentage
+        });
+
+        // Print results
+        console.log(`  Elapsed time: ${formatTime(totalTime)}`);
+        console.log(`  Success rate: ${successRate.toFixed(1)}% (${successCount}/${results.length} batches)`);
+
+        if (failureCount > 0) {
+          console.log(`  ⚠️  Failures: ${failureCount} batches failed/timed out`);
+        }
+
+        if (batchStats) {
+          console.log(`  Avg batch time: ${formatTime(batchStats.avg)}`);
+          console.log(`  Min batch time: ${formatTime(batchStats.min)}`);
+          console.log(`  Max batch time: ${formatTime(batchStats.max)}`);
+        }
+
+        // Print retry statistics if any retries occurred
+        if (totalRetries > 0) {
+          console.log(`  🔄 Retries: ${totalRetries} total (${batchesWithRetries} batches affected)`);
+          console.log(`     Retry time: ${formatTime(totalRetryTime)} (${retryPercentage.toFixed(1)}% of elapsed)`);
+        }
+
+        console.log('');
+
+      } catch (error) {
+        console.error(`  ❌ Test failed: ${error.message}\n`);
+      }
+    }
+
+    allResults.push({
+      batchSize,
+      results: batchSizeResults
+    });
+
+    // Print summary for this batch size
+    printHeader(`SUMMARY FOR BATCH SIZE ${batchSize}`);
+
+    console.log('Concurrency | Success Rate | Retry Time  | Retries | Avg Batch   | Elapsed Time | Throughput');
+    printDivider('-', 95);
+
+    batchSizeResults.forEach(({ concurrency, successRate, totalTime, batchStats, successCount, totalRetries, totalRetryTime }) => {
+      const throughput = successCount > 0 ? (targetTotal / (totalTime / 1000)).toFixed(2) : '0.00';
+      const retryTimeStr = totalRetries > 0 ? formatTime(totalRetryTime) : '-';
+      const retryCountStr = totalRetries > 0 ? String(totalRetries) : '-';
+      const avgBatchStr = batchStats ? formatTime(batchStats.avg) : 'N/A';
+
+      const statusEmoji = successRate === 100 ? '✅' : successRate >= 90 ? '⚠️ ' : '❌';
+
+      console.log(
+        `${statusEmoji} ${String(concurrency).padStart(7)} | ` +
+        `${String(successRate.toFixed(1) + '%').padStart(12)} | ` +
+        `${retryTimeStr.padStart(11)} | ` +
+        `${retryCountStr.padStart(7)} | ` +
+        `${avgBatchStr.padStart(11)} | ` +
+        `${formatTime(totalTime).padStart(12)} | ` +
+        `${throughput} para/s`
+      );
+    });
+
+    console.log('');
+
+    // Find optimal concurrency for this batch size
+    const perfectResults = batchSizeResults.filter(r => r.successRate === 100);
+
+    if (perfectResults.length > 0) {
+      const fastest = perfectResults.reduce((best, curr) =>
+        curr.totalTime < best.totalTime ? curr : best
+      );
+
+      console.log('Recommendations for batch size ' + batchSize + ':');
+      console.log(`  🏆 Optimal concurrency: ${fastest.concurrency} parallel batches`);
+      console.log(`     - 100% success rate`);
+      console.log(`     - Total time: ${formatTime(fastest.totalTime)}`);
+      console.log(`     - Throughput: ${(targetTotal / (fastest.totalTime / 1000)).toFixed(2)} paragraphs/second`);
+
+      // Find max safe concurrency
+      const maxSafe = perfectResults[perfectResults.length - 1];
+      if (maxSafe.concurrency > fastest.concurrency) {
+        console.log(`  📊 Max safe concurrency: ${maxSafe.concurrency} (still achieves 100% success)`);
+      }
+    } else {
+      console.log('⚠️  Warning: No concurrency level achieved 100% success rate!');
+      console.log('   Consider:');
+      console.log('   - Reducing total paragraphs tested');
+      console.log('   - Using smaller batch sizes');
+      console.log('   - Checking server capacity');
+    }
+
+    console.log('\n');
+  }
+
+  // Overall recommendations
+  printHeader('OVERALL RECOMMENDATIONS');
+
+  console.log('Based on testing across multiple batch sizes:\n');
+
+  allResults.forEach(({ batchSize, results }) => {
+    const perfectResults = results.filter(r => r.successRate === 100);
+
+    if (perfectResults.length > 0) {
+      const fastest = perfectResults.reduce((best, curr) =>
+        curr.totalTime < best.totalTime ? curr : best
+      );
+
+      console.log(`Batch size ${batchSize}:`);
+      console.log(`  → Use ${fastest.concurrency} concurrent batches for optimal performance`);
+      console.log(`     (${formatTime(fastest.totalTime)} elapsed for ${targetTotal} paragraphs, 100% success rate)\n`);
+    } else {
+      console.log(`Batch size ${batchSize}:`);
+      console.log(`  → ⚠️  All concurrency levels had failures - server may be overloaded\n`);
+    }
+  });
+
+  // Complete measurements table
+  printHeader('COMPLETE MEASUREMENTS');
+
+  console.log(`All measurements across batch sizes and concurrency levels (${targetTotal} paragraphs each)\n`);
+  console.log('Batch Size | Concurrency | Success Rate | Retry Time  | Retries | Avg Batch   | Elapsed Time | Throughput');
+  printDivider('-', 105);
+
+  // Flatten all results into single table
+  allResults.forEach(({ batchSize, results }) => {
+    results.forEach(({ concurrency, successRate, totalTime, batchStats, successCount, totalRetries, totalRetryTime }) => {
+      const throughput = successCount > 0 ? (targetTotal / (totalTime / 1000)).toFixed(2) : '0.00';
+      const retryTimeStr = totalRetries > 0 ? formatTime(totalRetryTime) : '-';
+      const retryCountStr = totalRetries > 0 ? String(totalRetries) : '-';
+      const avgBatchStr = batchStats ? formatTime(batchStats.avg) : 'N/A';
+
+      const statusEmoji = successRate === 100 ? '✅' : successRate >= 90 ? '⚠️ ' : '❌';
+
+      console.log(
+        `${statusEmoji} ${String(batchSize).padStart(7)} | ` +
+        `${String(concurrency).padStart(11)} | ` +
+        `${String(successRate.toFixed(1) + '%').padStart(12)} | ` +
+        `${retryTimeStr.padStart(11)} | ` +
+        `${retryCountStr.padStart(7)} | ` +
+        `${avgBatchStr.padStart(11)} | ` +
+        `${formatTime(totalTime).padStart(12)} | ` +
+        `${throughput} para/s`
+      );
+    });
+  });
+
+  console.log('');
+
+  return { success: true, results: allResults };
+}
+
+// ============================================================================
 // MAIN CLI
 // ============================================================================
 
@@ -364,13 +674,15 @@ Usage:
   node src/commentsClient.test.js --test <type>
 
 Test Types:
-  functional  - Verify backend connectivity and basic functionality
-  benchmark   - Measure performance across different batch sizes (1, 2, 4, 8, 16, 32)
-  all         - Run all tests
+  functional   - Verify backend connectivity and basic functionality
+  benchmark    - Measure performance across different batch sizes (1, 2, 4, 8, 16, 32)
+  concurrency  - Find optimal number of concurrent batches to avoid timeouts
+  all          - Run all tests
 
 Examples:
   node src/commentsClient.test.js --test functional
   node src/commentsClient.test.js --test benchmark
+  node src/commentsClient.test.js --test concurrency
   node src/commentsClient.test.js --test all
 `);
     process.exit(0);
@@ -403,6 +715,16 @@ Examples:
         console.log('\n\n');
       }
       const result = await runBenchmarkTest();
+      if (!result.success) {
+        process.exit(1);
+      }
+    }
+
+    if (testType === 'concurrency' || testType === 'all') {
+      if (testType === 'all') {
+        console.log('\n\n');
+      }
+      const result = await runConcurrencyTest();
       if (!result.success) {
         process.exit(1);
       }
