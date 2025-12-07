@@ -32,11 +32,11 @@ const CONFIG = {
 
   // Polling configuration
   POLL_INTERVAL_MS: 2000,      // 2 seconds between status checks
-  MAX_POLLS: 60,               // Max 2 minutes of polling per job
+  MAX_POLLS: 150,                      // Max 5 minutes of polling per job
 
   // Retry configuration
   MAX_RETRIES: 3,              // Number of retries for failed requests
-  RETRY_DELAY_MS: 1000,        // Delay before retrying (1 second)
+  RETRY_DELAY_MS: 2000,        // Delay before retrying (2 second)
 
   // Logging configuration
   // Levels: 'DEBUG', 'INFO', 'WARN', 'ERROR'
@@ -477,7 +477,7 @@ export async function getComments(paragraphs) {
     return getCommentsMock(paragraphs);
   }
 
-  logInfo(`Processing ${paragraphs.length} paragraph(s) in batches of ${CONFIG.API_BATCH_SIZE}`);
+  logInfo(`Processing ${paragraphs.length} paragraph(s) in internal batches of at most ${CONFIG.API_BATCH_SIZE}`);
 
   // Split paragraphs into batches
   const batches = [];
