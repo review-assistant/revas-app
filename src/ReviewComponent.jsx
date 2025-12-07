@@ -72,6 +72,7 @@ export default function ReviewComponent() {
   const widthFractionRef = useRef(null);
   const lastScrolledCommentRef = useRef(null);
   const justClosedCommentRef = useRef(null);
+  const currentRequestIdRef = useRef(0);
 
   // Initialize paragraph IDs on first render
   useEffect(() => {
@@ -437,6 +438,9 @@ export default function ReviewComponent() {
   const handleUpdate = async () => {
     if (!isModified) return;
 
+    // Create unique ID for this request
+    const requestId = ++currentRequestIdRef.current;
+
     // Collect modified paragraphs
     const modifiedParagraphs = paragraphsWithIds
       .filter(p => p.currentContent !== p.originalContent)
@@ -445,7 +449,7 @@ export default function ReviewComponent() {
         content: p.currentContent
       }));
 
-    console.log('Updating comments for modified paragraphs:', modifiedParagraphs);
+    console.log('Updating comments for modified paragraphs (request #' + requestId + '):', modifiedParagraphs);
 
     // Set loading state
     setIsLoading(true);
@@ -453,6 +457,12 @@ export default function ReviewComponent() {
     try {
       // Call getComments function (mock or API endpoint)
       const commentResults = await getComments(modifiedParagraphs);
+
+      // Check if this request is still current (not cancelled or superseded)
+      if (requestId !== currentRequestIdRef.current) {
+        console.log('Ignoring results from stale request #' + requestId + ' (current is #' + currentRequestIdRef.current + ')');
+        return;
+      }
 
       // Transform API response to internal comment format with severity
       // Also implement monotonic score behavior: new scores are max of old and new
@@ -539,8 +549,21 @@ export default function ReviewComponent() {
       setOriginalText(reviewText);
       setIsModified(false);
     } finally {
-      setIsLoading(false);
+      // Only clear loading if this request is still current
+      if (requestId === currentRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
+  };
+
+  const handleCancel = () => {
+    // Increment request ID to invalidate the current request
+    currentRequestIdRef.current++;
+
+    // Immediately reset UI
+    setIsLoading(false);
+
+    console.log('Request cancelled by user (invalidated request, now expecting #' + currentRequestIdRef.current + ')');
   };
 
   const handleCommentBarClick = (paragraphId) => {
@@ -705,18 +728,29 @@ export default function ReviewComponent() {
         </div>
       )}
 
-      {/* UPDATE Button */}
-      <button
-        onClick={handleUpdate}
-        disabled={!isModified || isLoading}
-        className={`absolute bottom-[10px] right-[22px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[119px] border border-black ${
-          isModified && !isLoading ? 'bg-[#4a90e2] cursor-pointer' : 'bg-[#d9d9d9] cursor-not-allowed'
-        } transition-colors duration-200`}
-      >
-        <span className="font-normal text-[20px] text-white leading-none">
-          UPDATE
-        </span>
-      </button>
+      {/* UPDATE/CANCEL Button */}
+      {isLoading ? (
+        <button
+          onClick={handleCancel}
+          className="absolute bottom-[10px] right-[22px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[119px] border border-black bg-[#dc3545] cursor-pointer transition-colors duration-200"
+        >
+          <span className="font-normal text-[20px] text-white leading-none">
+            CANCEL
+          </span>
+        </button>
+      ) : (
+        <button
+          onClick={handleUpdate}
+          disabled={!isModified}
+          className={`absolute bottom-[10px] right-[22px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[119px] border border-black ${
+            isModified ? 'bg-[#4a90e2] cursor-pointer' : 'bg-[#d9d9d9] cursor-not-allowed'
+          } transition-colors duration-200`}
+        >
+          <span className="font-normal text-[20px] text-white leading-none">
+            UPDATE
+          </span>
+        </button>
+      )}
 
       {/* Header */}
       <p className="absolute font-normal text-[20px] text-black top-[15px] left-[22px] w-[1036px]">
