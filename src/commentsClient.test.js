@@ -389,17 +389,19 @@ async function runBenchmarkTest() {
   printHeader('BENCHMARK SUMMARY');
 
   console.log(`All tests processed ${targetTotal} paragraphs total\n`);
-  console.log('Batch Size | # Batches | Avg Time    | Min Time    | Max Time    | Throughput');
-  printDivider('-', 80);
+  console.log('Batch Size | # Batches | Avg Time    | Min Time    | Max Time    | Avg Para Time | Throughput');
+  printDivider('-', 95);
 
   results.forEach(({ batchSize, stats, numBatches, totalParagraphs }) => {
     const throughput = (totalParagraphs / (stats.avg / 1000)).toFixed(2);
+    const avgParaTime = stats.avg / totalParagraphs; // milliseconds per paragraph
     console.log(
       `${String(batchSize).padStart(10)} | ` +
       `${String(numBatches).padStart(9)} | ` +
       `${formatTime(stats.avg).padStart(11)} | ` +
       `${formatTime(stats.min).padStart(11)} | ` +
       `${formatTime(stats.max).padStart(11)} | ` +
+      `${formatTime(avgParaTime).padStart(13)} | ` +
       `${throughput} para/s`
     );
   });
