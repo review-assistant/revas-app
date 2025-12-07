@@ -57,6 +57,7 @@ export default function ReviewComponent() {
   const [reviewTextWidth, setReviewTextWidth] = useState(null);
   const [lastUpdateParagraphs, setLastUpdateParagraphs] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Stable paragraph tracking: {id, originalContent, currentContent}
   const [paragraphsWithIds, setParagraphsWithIds] = useState([]);
@@ -446,93 +447,100 @@ export default function ReviewComponent() {
 
     console.log('Updating comments for modified paragraphs:', modifiedParagraphs);
 
-    // Call getComments function (mock or API endpoint)
-    const commentResults = await getComments(modifiedParagraphs);
+    // Set loading state
+    setIsLoading(true);
 
-    // Transform API response to internal comment format with severity
-    // Also implement monotonic score behavior: new scores are max of old and new
-    const newComments = {};
+    try {
+      // Call getComments function (mock or API endpoint)
+      const commentResults = await getComments(modifiedParagraphs);
 
-    Object.keys(commentResults).forEach(paragraphIdStr => {
-      const paragraphId = parseInt(paragraphIdStr);
-      const commentData = commentResults[paragraphIdStr];
-      const existingComments = commentsByParagraphId[paragraphId] || [];
+      // Transform API response to internal comment format with severity
+      // Also implement monotonic score behavior: new scores are max of old and new
+      const newComments = {};
 
-      // Transform each label's data into the internal format
-      const formattedComments = [];
-      const labels = ['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'];
+      Object.keys(commentResults).forEach(paragraphIdStr => {
+        const paragraphId = parseInt(paragraphIdStr);
+        const commentData = commentResults[paragraphIdStr];
+        const existingComments = commentsByParagraphId[paragraphId] || [];
 
-      labels.forEach(label => {
-        if (commentData[label]) {
-          let { score, text } = commentData[label];
+        // Transform each label's data into the internal format
+        const formattedComments = [];
+        const labels = ['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'];
 
-          // Check if this paragraph has test markers that should override monotonic behavior
-          const labelMarkers = { 'Actionability': 'A', 'Helpfulness': 'H', 'Grounding': 'G', 'Verifiability': 'V' };
-          const marker = labelMarkers[label];
-          const paraContent = modifiedParagraphs.find(p => p.id === paragraphId)?.content || '';
-          const hasMarker = paraContent.includes(`XXX${marker}`) ||
-                            paraContent.includes(`YYY${marker}`) ||
-                            paraContent.includes(`ZZZ${marker}`);
+        labels.forEach(label => {
+          if (commentData[label]) {
+            let { score, text } = commentData[label];
 
-          // Implement monotonic behavior UNLESS a marker is present (markers always override)
-          if (!hasMarker) {
-            const existingComment = existingComments.find(c => c.label === label);
-            if (existingComment && existingComment.score) {
-              // Take the maximum of old and new scores
-              score = Math.max(existingComment.score, score);
-              // Update text to reflect the final score
-              text = `${label} feedback for paragraph: Score ${score}/5. ${commentData[label].text.split('. ').slice(1).join('. ')}`;
+            // Check if this paragraph has test markers that should override monotonic behavior
+            const labelMarkers = { 'Actionability': 'A', 'Helpfulness': 'H', 'Grounding': 'G', 'Verifiability': 'V' };
+            const marker = labelMarkers[label];
+            const paraContent = modifiedParagraphs.find(p => p.id === paragraphId)?.content || '';
+            const hasMarker = paraContent.includes(`XXX${marker}`) ||
+                              paraContent.includes(`YYY${marker}`) ||
+                              paraContent.includes(`ZZZ${marker}`);
+
+            // Implement monotonic behavior UNLESS a marker is present (markers always override)
+            if (!hasMarker) {
+              const existingComment = existingComments.find(c => c.label === label);
+              if (existingComment && existingComment.score) {
+                // Take the maximum of old and new scores
+                score = Math.max(existingComment.score, score);
+                // Update text to reflect the final score
+                text = `${label} feedback for paragraph: Score ${score}/5. ${commentData[label].text.split('. ').slice(1).join('. ')}`;
+              }
             }
+
+            const severity = scoreToSeverity(score);
+
+            // Store all items including severity 'none' for score tracking
+            // Items with severity 'none' will be filtered out at display time
+            formattedComments.push({
+              severity: severity,
+              label: label,
+              text: text,
+              score: score // Store the score for future comparisons
+            });
           }
+        });
 
-          const severity = scoreToSeverity(score);
-
-          // Store all items including severity 'none' for score tracking
-          // Items with severity 'none' will be filtered out at display time
-          formattedComments.push({
-            severity: severity,
-            label: label,
-            text: text,
-            score: score // Store the score for future comparisons
-          });
+        // Always store all comments (including 'none' severity items for score tracking)
+        // Display logic will filter out 'none' items at render time
+        if (formattedComments.length > 0) {
+          newComments[paragraphId] = formattedComments;
         }
       });
 
-      // Always store all comments (including 'none' severity items for score tracking)
-      // Display logic will filter out 'none' items at render time
-      if (formattedComments.length > 0) {
-        newComments[paragraphId] = formattedComments;
-      }
-    });
+      // Merge new comments with existing comments
+      // Start with existing comments, then remove old comments for modified paragraphs,
+      // and finally add new comments for those modified paragraphs
+      const updatedComments = { ...commentsByParagraphId };
 
-    // Merge new comments with existing comments
-    // Start with existing comments, then remove old comments for modified paragraphs,
-    // and finally add new comments for those modified paragraphs
-    const updatedComments = { ...commentsByParagraphId };
+      // Remove old comments for all modified paragraphs
+      modifiedParagraphs.forEach(p => {
+        delete updatedComments[p.id];
+      });
 
-    // Remove old comments for all modified paragraphs
-    modifiedParagraphs.forEach(p => {
-      delete updatedComments[p.id];
-    });
+      // Add new comments (only for paragraphs that have non-'none' items)
+      Object.assign(updatedComments, newComments);
 
-    // Add new comments (only for paragraphs that have non-'none' items)
-    Object.assign(updatedComments, newComments);
+      setCommentsByParagraphId(updatedComments);
 
-    setCommentsByParagraphId(updatedComments);
+      // Update paragraph originalContent to match currentContent
+      const updatedParagraphs = paragraphsWithIds.map(p => ({
+        ...p,
+        originalContent: p.currentContent
+      }));
+      setParagraphsWithIds(updatedParagraphs);
 
-    // Update paragraph originalContent to match currentContent
-    const updatedParagraphs = paragraphsWithIds.map(p => ({
-      ...p,
-      originalContent: p.currentContent
-    }));
-    setParagraphsWithIds(updatedParagraphs);
+      // Store current paragraphs for comparison
+      setLastUpdateParagraphs(getParagraphs(reviewText));
 
-    // Store current paragraphs for comparison
-    setLastUpdateParagraphs(getParagraphs(reviewText));
-
-    // Update original text and deactivate button
-    setOriginalText(reviewText);
-    setIsModified(false);
+      // Update original text and deactivate button
+      setOriginalText(reviewText);
+      setIsModified(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCommentBarClick = (paragraphId) => {
@@ -686,12 +694,23 @@ export default function ReviewComponent() {
 
   return (
     <div className="bg-white box-border flex flex-col gap-[21px] items-center justify-center px-[22px] py-[15px] h-screen w-full">
+      {/* Loading indicator - small spinner aligned left of UPDATE button */}
+      {isLoading && (
+        <div className="absolute bottom-[10px] right-[155px] flex items-center gap-[8px]">
+          <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span className="text-blue-500 text-[14px]">Loading comments...</span>
+        </div>
+      )}
+
       {/* UPDATE Button */}
       <button
         onClick={handleUpdate}
-        disabled={!isModified}
+        disabled={!isModified || isLoading}
         className={`absolute bottom-[10px] right-[22px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[119px] border border-black ${
-          isModified ? 'bg-[#4a90e2] cursor-pointer' : 'bg-[#d9d9d9] cursor-not-allowed'
+          isModified && !isLoading ? 'bg-[#4a90e2] cursor-pointer' : 'bg-[#d9d9d9] cursor-not-allowed'
         } transition-colors duration-200`}
       >
         <span className="font-normal text-[20px] text-white leading-none">
@@ -705,7 +724,7 @@ export default function ReviewComponent() {
       </p>
 
       {/* Statistics Bar */}
-      <div className="absolute font-normal text-[12px] text-black top-[15px] right-[22px] flex gap-[15px]">
+      <div className="absolute font-normal text-[12px] text-black top-[15px] right-[22px] flex gap-[15px] items-center">
         {/* Label counts */}
         {['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'].map(label => {
           const count = stats[label];
@@ -996,6 +1015,7 @@ export default function ReviewComponent() {
           })()}
         </div>
       </div>
+
     </div>
   );
 }

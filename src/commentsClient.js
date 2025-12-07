@@ -45,7 +45,7 @@ const CONFIG = {
   LOG_LEVEL: 'INFO',
 
   // Mock mode configuration
-  MOCK_DELAY_MS: 500           // Simulated API delay in mock mode
+  MOCK_DELAY_MS: 5000          // Simulated API delay in mock mode (5 seconds)
 };
 
 // ============================================================================
