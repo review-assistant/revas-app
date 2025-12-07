@@ -1,83 +1,20 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { getComments } from './commentsClient.js';
 
-// Helper function to generate random scores with equal probability
-const generateWeightedScore = () => {
-  return Math.floor(Math.random() * 5) + 1; // 1-5, each with 20% probability
-};
-
-// Mock function to generate comments for paragraphs
-// In a real app, this would be an HTTP endpoint call:
-// const getComments = async (paragraphs) => {
-//   const response = await fetch('YOUR_API_ENDPOINT', {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({ paragraphs })
-//   });
-//   return await response.json();
-// };
+// Now using commentsClient for API calls
+// Toggle between mock and backend by changing MODE in commentsClient.js:
+//   MODE: 'mock'    - Uses local mock data (includes XXX/YYY/ZZZ test markers)
+//   MODE: 'backend' - Calls real API at http://10.127.105.10:8888
 //
-// The API should return an object with this structure:
-//
+// API returns data in the format:
 // {
 //   paragraphId: {
-//     Actionability: { score: 1-5, text: "feedback text" },
-//     Helpfulness: { score: 1-5, text: "feedback text" },
-//     Grounding: { score: 1-5, text: "feedback text" },
-//     Verifiability: { score: 1-5, text: "feedback text" }
+//     Actionability: { score: 1-5, text: "..." },
+//     Helpfulness: { score: 1-5, text: "..." },
+//     Grounding: { score: 1-5, text: "..." },
+//     Verifiability: { score: 1-5, text: "..." }
 //   }
 // }
-//
-const getComments = async (paragraphs) => {
-  // paragraphs: array of {id, content}
-  // Returns: object keyed by paragraph id with comment data
-
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  const results = {};
-
-  paragraphs.forEach(para => {
-    const labels = ['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'];
-    const comment = {};
-
-    // Map label to marker suffix
-    const labelMarkers = {
-      'Actionability': 'A',
-      'Helpfulness': 'H',
-      'Grounding': 'G',
-      'Verifiability': 'V'
-    };
-
-    labels.forEach(label => {
-      const marker = labelMarkers[label];
-      let score;
-
-      // Check for special markers in text to override score
-      if (para.content.includes(`XXX${marker}`)) {
-        score = 1;
-        console.log(`Found marker XXX${marker} in paragraph ${para.id}, setting ${label} score to 1`);
-      } else if (para.content.includes(`YYY${marker}`)) {
-        score = 3;
-        console.log(`Found marker YYY${marker} in paragraph ${para.id}, setting ${label} score to 3`);
-      } else if (para.content.includes(`ZZZ${marker}`)) {
-        score = 5;
-        console.log(`Found marker ZZZ${marker} in paragraph ${para.id}, setting ${label} score to 5`);
-      } else {
-        // Generate random score as usual
-        score = generateWeightedScore();
-      }
-
-      comment[label] = {
-        score: score,
-        text: `${label} feedback for paragraph: Score ${score}/5. ${para.content.substring(0, 50)}...`
-      };
-    });
-
-    results[para.id] = comment;
-  });
-
-  return results;
-};
 
 // Helper function to convert score to severity
 const scoreToSeverity = (score) => {

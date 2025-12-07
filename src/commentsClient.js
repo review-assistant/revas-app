@@ -630,6 +630,7 @@ async function runCLI() {
 }
 
 // Check if this file is being run directly (not imported)
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Only run CLI in Node.js environment (not browser)
+if (typeof process !== 'undefined' && process.argv && import.meta.url === `file://${process.argv[1]}`) {
   runCLI();
 }
