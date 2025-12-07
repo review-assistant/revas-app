@@ -62,7 +62,6 @@ export default function ReviewComponent() {
   const [paragraphsWithIds, setParagraphsWithIds] = useState([]);
   const nextParagraphIdRef = useRef(0);
   const [commentsByParagraphId, setCommentsByParagraphId] = useState({});
-  const [commentPositions, setCommentPositions] = useState({}); // Store calculated positions for each paragraph
 
   const textareaRef = useRef(null);
   const hiddenTextRef = useRef(null);
@@ -244,20 +243,15 @@ export default function ReviewComponent() {
 
   // Calculate and store width fraction when a comment bar is opened
   useLayoutEffect(() => {
-    if (openCommentBar !== null && reviewTextFrameRef.current && viewportRef.current) {
+    if (openCommentBar !== null && viewportRef.current) {
       if (widthFractionRef.current === null) {
-        // First time opening - capture initial fraction
-        const reviewTextRect = reviewTextFrameRef.current.getBoundingClientRect();
-        const viewportRect = viewportRef.current.getBoundingClientRect();
-        const fraction = reviewTextRect.width / viewportRect.width;
-        widthFractionRef.current = fraction;
-        setReviewTextWidth(reviewTextRect.width);
-      } else {
-        // Reopening - use stored fraction
-        const viewportRect = viewportRef.current.getBoundingClientRect();
-        const newWidth = viewportRect.width * widthFractionRef.current;
-        setReviewTextWidth(newWidth);
+        // First time opening - use default 60% width for review text
+        widthFractionRef.current = 0.6;
       }
+      // Always calculate width from fraction (don't measure the frame)
+      const viewportRect = viewportRef.current.getBoundingClientRect();
+      const newWidth = viewportRect.width * widthFractionRef.current;
+      setReviewTextWidth(newWidth);
     }
     // Trigger recalculation when comment bar opens/closes to update paragraph boundaries
     setResizeCounter(prev => prev + 1);
@@ -266,7 +260,8 @@ export default function ReviewComponent() {
   // Listen for window resize events and maintain width fraction
   useEffect(() => {
     const handleResize = () => {
-      if (openCommentBar !== null && viewportRef.current && widthFractionRef.current !== null) {
+      // Always update width on resize if fraction is set (even when no comment is open)
+      if (viewportRef.current && widthFractionRef.current !== null) {
         const viewportRect = viewportRef.current.getBoundingClientRect();
         const newWidth = viewportRect.width * widthFractionRef.current;
         setReviewTextWidth(newWidth);
@@ -276,7 +271,7 @@ export default function ReviewComponent() {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [openCommentBar]);
+  }, []);
 
   // Update paragraph positions when text changes (including blank line insertions) or on scroll
   // Using useLayoutEffect to ensure DOM is measured after updates but before paint
@@ -299,7 +294,7 @@ export default function ReviewComponent() {
 
       setParagraphPositions(positions);
     }
-  }, [reviewText, scrollTop, resizeCounter]);
+  }, [reviewText, scrollTop, resizeCounter, reviewTextWidth]);
 
   // Auto-resize textarea (when text changes or width changes)
   useEffect(() => {
@@ -315,55 +310,9 @@ export default function ReviewComponent() {
     if (previousOpenCommentRef.current !== null && openCommentBar === null) {
       // A comment bar was just closed
       justClosedCommentRef.current = previousOpenCommentRef.current;
-
-      // Clear the stored position so it gets recalculated on next open
-      setCommentPositions(prev => {
-        const updated = { ...prev };
-        delete updated[previousOpenCommentRef.current];
-        return updated;
-      });
     }
     previousOpenCommentRef.current = openCommentBar;
   }, [openCommentBar]);
-
-  // Calculate comment position after scroll completes
-  useEffect(() => {
-    if (openCommentBar !== null && commentPositions[openCommentBar] === undefined) {
-      // Wait for scroll animation to complete before calculating position
-      const positionTimer = setTimeout(() => {
-        const paragraphIndex = paragraphsWithIds.findIndex(p => p.id === openCommentBar);
-        if (paragraphIndex < 0) return;
-
-        const position = paragraphPositions[paragraphIndex];
-        if (!position) return;
-
-        const paragraphComments = commentsByParagraphId[openCommentBar];
-        if (!paragraphComments) return;
-
-        const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
-        if (visibleComments.length === 0) return;
-
-        const commentHeight = getTotalCommentHeight(visibleComments);
-        const centeredTop = position.top + 10 + (position.height - commentHeight) / 2;
-
-        // Get current viewport state after scroll completes
-        const viewportHeight = scrollContainerRef.current?.clientHeight || 0;
-        const currentScrollTop = scrollContainerRef.current?.scrollTop || 0;
-
-        // Calculate visible bounds
-        const minTop = currentScrollTop + 10;
-        const maxTop = currentScrollTop + viewportHeight - commentHeight - 10;
-
-        // Clamp position to keep comments within visible viewport
-        const finalTop = Math.max(minTop, Math.min(centeredTop, maxTop));
-
-        // Store this position
-        setCommentPositions(prev => ({ ...prev, [openCommentBar]: finalTop }));
-      }, 400); // Wait for scroll animation (100ms delay + smooth scroll)
-
-      return () => clearTimeout(positionTimer);
-    }
-  }, [openCommentBar, paragraphsWithIds, paragraphPositions, commentsByParagraphId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to center the clicked comment bar after layout settles (only once per click)
   useEffect(() => {
@@ -1011,18 +960,8 @@ export default function ReviewComponent() {
                   // Filter out 'none' severity items (score 5) at display time
                   const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
 
-                  // Use stored position (calculated after scroll completes) or centered position as fallback
-                  let commentTop = 0;
-                  if (position) {
-                    if (commentPositions[openCommentBar] !== undefined) {
-                      // Use stored position (calculated with viewport bounds after scroll)
-                      commentTop = commentPositions[openCommentBar];
-                    } else {
-                      // Temporary centered position while waiting for bounds calculation
-                      const commentHeight = getTotalCommentHeight(visibleComments);
-                      commentTop = position.top + 10 + (position.height - commentHeight) / 2;
-                    }
-                  }
+                  // Simple top-aligned position
+                  const commentTop = position ? position.top + 10 : 0;
 
                   return visibleComments.length > 0 && (
                     <div
@@ -1059,13 +998,4 @@ export default function ReviewComponent() {
       </div>
     </div>
   );
-}
-
-// Helper function to calculate total height of comments
-function getTotalCommentHeight(comments) {
-  // Rough estimate: 15px per line, plus label height
-  return comments.reduce((total, comment) => {
-    const lines = Math.ceil(comment.text.length / 50);
-    return total + (lines * 15) + 20; // 20 for label
-  }, 0) + (comments.length - 1) * 11; // 11px gap between comments
 }
