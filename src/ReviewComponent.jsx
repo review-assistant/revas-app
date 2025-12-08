@@ -59,6 +59,7 @@ export default function ReviewComponent() {
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0); // Progress percentage (0-100)
+  const [loadingWord, setLoadingWord] = useState('Loading');
 
   // Stable paragraph tracking: {id, originalContent, currentContent}
   const [paragraphsWithIds, setParagraphsWithIds] = useState([]);
@@ -459,8 +460,30 @@ export default function ReviewComponent() {
     console.log('Updating comments for modified paragraphs (request #' + requestId + '):', modifiedParagraphs);
 
     // Set loading state and reset progress
+    // Randomly select a thinking word for this loading session
+    const thinkingWords = [
+      'Analyzing',
+      'Processing',
+      'Computing',
+      'Evaluating',
+      'Considering',
+      'Calculating',
+      'Reviewing',
+      'Examining',
+      'Synthesizing',
+      'Pondering',
+      'Combobulating',
+      'Extemporizing',
+      'Pontificating',
+      'Thought-Leadering',
+      'Embroidering',
+      'Sauteeing'
+    ];
+    const randomWord = thinkingWords[Math.floor(Math.random() * thinkingWords.length)];
+
     setIsLoading(true);
     setLoadingProgress(0);
+    setLoadingWord(randomWord);
 
     try {
       // Call getComments function with progress callback
@@ -761,7 +784,7 @@ export default function ReviewComponent() {
           )}
           {/* Loading text */}
           <span className="text-blue-500 text-[14px]">
-            {loadingProgress < 100 ? 'Loading...' : 'Complete!'}
+            {loadingProgress < 100 ? `${loadingWord}...` : 'Complete!'}
           </span>
         </div>
       )}
