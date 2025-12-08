@@ -65,6 +65,9 @@ export default function ReviewComponent() {
   const nextParagraphIdRef = useRef(0);
   const [commentsByParagraphId, setCommentsByParagraphId] = useState({});
 
+  // Track individual comment element heights for segmented bars
+  const [commentHeights, setCommentHeights] = useState({}); // {paragraphId: [{label, height, color}, ...]}
+
   const textareaRef = useRef(null);
   const hiddenTextRef = useRef(null);
   const viewportRef = useRef(null);
@@ -927,10 +930,11 @@ export default function ReviewComponent() {
               if (!color && !isModified) return null;
 
               const isOpen = openCommentBar === id;
+              const isClosed = openCommentBar !== null && !isOpen;
 
               return (
                 <React.Fragment key={id}>
-                  {/* Connecting line - drawn behind comment bar */}
+                  {/* Connecting line - drawn behind comment bar, aligned with paragraph center */}
                   {isOpen && (
                     <svg
                       className="absolute pointer-events-none z-5"
@@ -958,12 +962,86 @@ export default function ReviewComponent() {
                     style={{
                       backgroundColor: 'transparent',
                       top: `${position.top + 10}px`,
-                      height: `${position.height}px`,
+                      height: isOpen && commentTextRef.current
+                        ? `${commentTextRef.current.offsetHeight}px`
+                        : `${position.height}px`,
                       right: isOpen ? '-28.5px' : '-8.5px'
                     }}
                   >
-                    {/* Proportional red and yellow bars (works for pure or mixed) */}
+                    {/* Segmented bars when open, proportional when closed */}
                     {color && (() => {
+
+                      // When open and we have measured comment heights, render segments
+                      if (isOpen && commentHeights[id] && commentHeights[id].length > 0) {
+                        const segments = commentHeights[id];
+                        let currentY = 0;
+
+                        return (
+                          <>
+                            <svg
+                              className="absolute left-0 top-0 pointer-events-none"
+                              width="16"
+                              height={commentTextRef.current ? commentTextRef.current.offsetHeight : position.height}
+                              style={{ height: '100%' }}
+                            >
+                              {/* Vertical connecting line - full height, drawn behind segments */}
+                              {segments.length > 1 && (
+                                <line
+                                  x1="8"
+                                  y1="0"
+                                  x2="8"
+                                  y2={commentTextRef.current ? commentTextRef.current.offsetHeight : position.height}
+                                  stroke="black"
+                                  strokeWidth="3"
+                                />
+                              )}
+                              {/* Colored segment rectangles drawn on top of line */}
+                              {segments.map((segment, idx) => {
+                                const segmentElement = (
+                                  <rect
+                                    key={idx}
+                                    x="0"
+                                    y={currentY}
+                                    width="16"
+                                    height={segment.height}
+                                    fill={segment.color}
+                                  />
+                                );
+                                currentY += segment.height + 11; // Add gap between comments
+                                return segmentElement;
+                              })}
+                            </svg>
+                            {/* Blue dotted lines for each segment when modified */}
+                            {isModified && (
+                              <svg
+                                className="absolute left-0 top-0 pointer-events-none"
+                                width="16"
+                                height={commentTextRef.current ? commentTextRef.current.offsetHeight : position.height}
+                                style={{ height: '100%' }}
+                              >
+                                {segments.map((segment, idx) => {
+                                  const segmentY = segments.slice(0, idx).reduce((sum, s) => sum + s.height + 11, 0);
+                                  return (
+                                    <rect
+                                      key={idx}
+                                      x="1.5"
+                                      y={segmentY + 1.5}
+                                      width="13"
+                                      height={segment.height - 3}
+                                      fill="none"
+                                      stroke="#4a90e2"
+                                      strokeWidth="3"
+                                      strokeDasharray="6 3"
+                                    />
+                                  );
+                                })}
+                              </svg>
+                            )}
+                          </>
+                        );
+                      }
+
+                      // When closed, use proportional display
                       const counts = getCommentSeverityCounts(id);
                       const total = counts.red + counts.yellow;
                       if (total === 0) return null;
@@ -981,39 +1059,47 @@ export default function ReviewComponent() {
                           {/* Red bar (top portion, 0% if no red comments) */}
                           {counts.red > 0 && (
                             <rect
-                              x="0"
-                              y="0"
-                              width="16"
-                              height={redHeight}
-                              fill="#cc5656"
+                              x="1"
+                              y="1"
+                              width="14"
+                              height={redHeight - (counts.yellow > 0 ? 1 : 2)}
+                              fill={isClosed ? 'white' : '#cc5656'}
+                              stroke="#cc5656"
+                              strokeWidth="2"
                             />
                           )}
                           {/* Yellow bar (bottom portion, 0% if no yellow comments) */}
                           {counts.yellow > 0 && (
                             <rect
-                              x="0"
-                              y={redHeight}
-                              width="16"
-                              height={position.height - redHeight}
-                              fill="#ffc700"
+                              x="1"
+                              y={redHeight + (counts.red > 0 ? 0 : 1)}
+                              width="14"
+                              height={position.height - redHeight - (counts.red > 0 ? 1 : 2)}
+                              fill={isClosed ? 'white' : '#ffc700'}
+                              stroke="#ffc700"
+                              strokeWidth="2"
                             />
                           )}
                         </svg>
                       );
                     })()}
 
-                    {isModified && (
+                    {isModified && !isOpen && (
                       <svg
                         className="absolute left-0 top-0 pointer-events-none"
                         width="16"
-                        height={position.height}
+                        height={isOpen && commentTextRef.current
+                          ? commentTextRef.current.offsetHeight
+                          : position.height}
                         style={{ height: '100%' }}
                       >
                         <rect
-                          x="1.5"
-                          y="1.5"
-                          width="13"
-                          height={position.height - 3}
+                          x={isClosed ? "3.5" : "1.5"}
+                          y={isClosed ? "3.5" : "1.5"}
+                          width={isClosed ? "9" : "13"}
+                          height={(isOpen && commentTextRef.current
+                            ? commentTextRef.current.offsetHeight
+                            : position.height) - (isClosed ? 7 : 3)}
                           fill="none"
                           stroke="#4a90e2"
                           strokeWidth="3"
@@ -1067,7 +1153,31 @@ export default function ReviewComponent() {
                         return 0;
                       })
                       .map((comment, index) => (
-                        <div key={index} className="leading-normal">
+                        <div
+                          key={index}
+                          className="leading-normal"
+                          ref={(el) => {
+                            // Measure and store each comment's height only if it changed
+                            if (el && openCommentBar !== null) {
+                              const height = el.offsetHeight;
+                              const color = comment.severity === 'red' ? '#cc5656' : '#ffc700';
+
+                              setCommentHeights(prev => {
+                                const existing = prev[openCommentBar] || [];
+                                const current = existing[index];
+
+                                // Only update if height or color changed
+                                if (!current || current.height !== height || current.color !== color || current.label !== comment.label) {
+                                  const updated = [...existing];
+                                  updated[index] = { label: comment.label, height, color };
+                                  return { ...prev, [openCommentBar]: updated };
+                                }
+
+                                return prev; // No change, return same object to prevent re-render
+                              });
+                            }
+                          }}
+                        >
                           <p
                             className="font-bold mb-0 not-italic"
                             style={{ color: comment.severity === 'red' ? '#cc5656' : '#ffc700' }}
