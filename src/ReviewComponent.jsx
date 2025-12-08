@@ -58,6 +58,7 @@ export default function ReviewComponent() {
   const [lastUpdateParagraphs, setLastUpdateParagraphs] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0); // Progress percentage (0-100)
 
   // Stable paragraph tracking: {id, originalContent, currentContent}
   const [paragraphsWithIds, setParagraphsWithIds] = useState([]);
@@ -451,12 +452,16 @@ export default function ReviewComponent() {
 
     console.log('Updating comments for modified paragraphs (request #' + requestId + '):', modifiedParagraphs);
 
-    // Set loading state
+    // Set loading state and reset progress
     setIsLoading(true);
+    setLoadingProgress(0);
 
     try {
-      // Call getComments function (mock or API endpoint)
-      const commentResults = await getComments(modifiedParagraphs);
+      // Call getComments function with progress callback
+      const commentResults = await getComments(modifiedParagraphs, (completed, total, percentage) => {
+        setLoadingProgress(percentage);
+        console.log(`Progress: ${completed}/${total} batches (${percentage}%)`);
+      });
 
       // Check if this request is still current (not cancelled or superseded)
       if (requestId !== currentRequestIdRef.current) {
@@ -552,6 +557,7 @@ export default function ReviewComponent() {
       // Only clear loading if this request is still current
       if (requestId === currentRequestIdRef.current) {
         setIsLoading(false);
+        setLoadingProgress(0);
       }
     }
   };
@@ -562,6 +568,7 @@ export default function ReviewComponent() {
 
     // Immediately reset UI
     setIsLoading(false);
+    setLoadingProgress(0);
 
     console.log('Request cancelled by user (invalidated request, now expecting #' + currentRequestIdRef.current + ')');
   };
@@ -717,14 +724,34 @@ export default function ReviewComponent() {
 
   return (
     <div className="bg-white box-border flex flex-col gap-[21px] items-center justify-center px-[22px] py-[15px] h-screen w-full">
-      {/* Loading indicator - small spinner aligned left of UPDATE button */}
+      {/* Loading indicator - progress bar aligned left of UPDATE/CANCEL button */}
       {isLoading && (
-        <div className="absolute bottom-[10px] right-[155px] flex items-center gap-[8px]">
-          <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <span className="text-blue-500 text-[14px]">Loading comments...</span>
+        <div className="absolute bottom-[10px] right-[155px] flex items-center gap-[10px]">
+          {/* Progress bar container */}
+          <div className="w-[200px] h-[20px] bg-gray-200 rounded-full overflow-hidden border border-gray-300">
+            {/* Progress bar fill */}
+            <div
+              className="h-full bg-blue-500 transition-all duration-300 ease-out flex items-center justify-center"
+              style={{ width: `${loadingProgress}%` }}
+            >
+              {/* Percentage text inside bar (only show if there's enough space) */}
+              {loadingProgress > 15 && (
+                <span className="text-white text-[12px] font-semibold">
+                  {loadingProgress}%
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Percentage text outside bar (show if bar is too small) */}
+          {loadingProgress <= 15 && (
+            <span className="text-blue-500 text-[14px] font-semibold min-w-[40px]">
+              {loadingProgress}%
+            </span>
+          )}
+          {/* Loading text */}
+          <span className="text-blue-500 text-[14px]">
+            {loadingProgress < 100 ? 'Loading...' : 'Complete!'}
+          </span>
         </div>
       )}
 
@@ -732,7 +759,7 @@ export default function ReviewComponent() {
       {isLoading ? (
         <button
           onClick={handleCancel}
-          className="absolute bottom-[10px] right-[22px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[119px] border border-black bg-[#dc3545] cursor-pointer transition-colors duration-200"
+          className="absolute bottom-[10px] right-[22px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[119px] border border-black bg-[#6c757d] cursor-pointer transition-colors duration-200"
         >
           <span className="font-normal text-[20px] text-white leading-none">
             CANCEL

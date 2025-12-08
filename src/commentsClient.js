@@ -27,8 +27,8 @@ const CONFIG = {
   API_BASE_URL: 'http://10.127.105.10:8888',
 
   // Batch processing configuration
-  // Server maximum is 128, we use a smaller batch size for better parallelism
-  API_BATCH_SIZE: 32,
+  // Server maximum is 128, using batch size of 1 for fine-grained progress updates
+  API_BATCH_SIZE: 1,
 
   // Polling configuration
   POLL_INTERVAL_MS: 2000,      // 2 seconds between status checks
@@ -468,16 +468,19 @@ function transformApiResponse(paragraphs, apiResponse) {
  * Processes paragraphs in batches asynchronously for better parallelism
  *
  * @param {Array<{id: number|string, content: string}>} paragraphs - Array of paragraphs to analyze
+ * @param {Function} onProgress - Optional callback function(completedBatches, totalBatches, percentage)
  * @returns {Promise<Object>} - Object keyed by paragraph id with comment data
  *
  * @example
  * const comments = await getComments([
  *   { id: 1, content: "This is a review comment..." },
  *   { id: 2, content: "Another review comment..." }
- * ]);
+ * ], (completed, total, pct) => {
+ *   console.log(`Progress: ${pct}%`);
+ * });
  * // Returns: { 1: { Actionability: {...}, ... }, 2: { ... } }
  */
-export async function getComments(paragraphs) {
+export async function getComments(paragraphs, onProgress = null) {
   if (!paragraphs || paragraphs.length === 0) {
     logWarn('getComments called with empty paragraphs array');
     return {};
@@ -499,8 +502,26 @@ export async function getComments(paragraphs) {
   logInfo(`Split into ${batches.length} batch(es)`);
 
   try {
-    // Process all batches in parallel
-    const batchPromises = batches.map((batch, index) => processBatch(batch, index));
+    // Process all batches in parallel, but track completion for progress
+    let completedBatches = 0;
+    const totalBatches = batches.length;
+
+    const batchPromises = batches.map(async (batch, index) => {
+      const result = await processBatch(batch, index);
+
+      // Update progress after each batch completes
+      completedBatches++;
+      const percentage = Math.round((completedBatches / totalBatches) * 100);
+
+      if (onProgress) {
+        onProgress(completedBatches, totalBatches, percentage);
+      }
+
+      logDebug(`Batch ${index + 1}/${totalBatches} complete (${percentage}%)`);
+
+      return result;
+    });
+
     const batchResults = await Promise.all(batchPromises);
 
     logInfo('All batches completed successfully');
