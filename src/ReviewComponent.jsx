@@ -459,8 +459,13 @@ export default function ReviewComponent() {
     try {
       // Call getComments function with progress callback
       const commentResults = await getComments(modifiedParagraphs, (completed, total, percentage) => {
-        setLoadingProgress(percentage);
-        console.log(`Progress: ${completed}/${total} batches (${percentage}%)`);
+        // Only update progress if this request is still current
+        if (requestId === currentRequestIdRef.current) {
+          setLoadingProgress(percentage);
+          console.log(`Progress: ${completed}/${total} batches (${percentage}%)`);
+        } else {
+          console.log(`Ignoring progress from stale request #${requestId} (current is #${currentRequestIdRef.current})`);
+        }
       });
 
       // Check if this request is still current (not cancelled or superseded)
