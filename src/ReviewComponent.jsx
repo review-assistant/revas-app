@@ -74,6 +74,7 @@ export default function ReviewComponent() {
   const lastScrolledCommentRef = useRef(null);
   const justClosedCommentRef = useRef(null);
   const currentRequestIdRef = useRef(0);
+  const commentTextRef = useRef(null);
 
   // Initialize paragraph IDs on first render
   useEffect(() => {
@@ -317,7 +318,7 @@ export default function ReviewComponent() {
     previousOpenCommentRef.current = openCommentBar;
   }, [openCommentBar]);
 
-  // Scroll to center the clicked comment bar after layout settles (only once per click)
+  // Scroll when opening a comment to make comment text visible
   useEffect(() => {
     if (openCommentBar === null) {
       // When closing a comment bar, just reset the scroll ref
@@ -327,7 +328,7 @@ export default function ReviewComponent() {
     } else if (openCommentBar !== lastScrolledCommentRef.current &&
                paragraphPositions[openCommentBar] &&
                scrollContainerRef.current) {
-      // Opening a comment bar - scroll to center it
+      // Opening a comment bar - scroll to show comment text or bar at top
       const scrollTimer = setTimeout(() => {
         // Re-check that this comment is still open (user might have clicked again)
         if (openCommentBar === null) return;
@@ -341,28 +342,30 @@ export default function ReviewComponent() {
         const containerHeight = scrollContainer.clientHeight;
         const currentScrollTop = scrollContainer.scrollTop;
 
-        // Check if comment bar is fully visible in viewport
+        // Get comment text height if available
+        const commentTextHeight = commentTextRef.current ? commentTextRef.current.offsetHeight : 0;
+
+        // Calculate positions
         const barTop = position.top + 10;
-        const barBottom = position.top + 10 + position.height;
-        const viewportTop = currentScrollTop;
+        const commentTextTop = barTop;
+        const commentTextBottom = commentTextTop + commentTextHeight;
         const viewportBottom = currentScrollTop + containerHeight;
 
-        const isFullyVisible = barTop >= viewportTop && barBottom <= viewportBottom;
+        // Check if comment text is fully visible
+        if (commentTextBottom > viewportBottom) {
+          // Comment text extends below viewport - need to scroll up
 
-        // Only scroll if comment bar is not fully visible
-        if (!isFullyVisible) {
-          // Calculate the center of the comment bar relative to the scrollable content
-          const commentBarCenter = position.top + 10 + (position.height / 2);
+          // Option A: Scroll so comment text bottom aligns with viewport bottom
+          const scrollToShowText = commentTextBottom - containerHeight;
 
-          // Scroll so the comment bar center aligns with viewport center
-          const targetScrollTop = commentBarCenter - (containerHeight / 2);
+          // Option B: Scroll comment bar to top of viewport
+          const scrollBarToTop = barTop;
 
-          // Clamp to valid scroll range
-          const maxScrollTop = scrollContainer.scrollHeight - containerHeight;
-          const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
+          // Use the minimum (scroll less) - this prioritizes showing text but won't scroll bar above top
+          const targetScrollTop = Math.max(0, Math.min(scrollToShowText, scrollBarToTop));
 
           scrollContainer.scrollTo({
-            top: clampedScrollTop,
+            top: targetScrollTop,
             behavior: 'smooth'
           });
         }
@@ -879,7 +882,7 @@ export default function ReviewComponent() {
           {/* Review Text Frame */}
           <div
             ref={reviewTextFrameRef}
-            className={`border border-black box-border px-[20px] py-[10px] relative min-h-full ${openCommentBar === null || reviewTextWidth === null ? 'flex-1' : 'shrink-0'}`}
+            className={`border-t border-l border-r border-black box-border px-[20px] py-[10px] relative min-h-full ${openCommentBar === null || reviewTextWidth === null ? 'flex-1' : 'shrink-0'}`}
             style={openCommentBar !== null && reviewTextWidth !== null ? { width: `${reviewTextWidth}px` } : {}}
           >
             {/* Textarea for editing */}
@@ -1050,6 +1053,7 @@ export default function ReviewComponent() {
 
                   return visibleComments.length > 0 && (
                     <div
+                      ref={commentTextRef}
                       className="absolute left-0 flex flex-col gap-[11px]"
                       style={{
                         top: `${commentTop}px`
