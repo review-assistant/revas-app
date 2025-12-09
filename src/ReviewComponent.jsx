@@ -75,6 +75,9 @@ export default function ReviewComponent() {
   // Track individual comment element heights for segmented bars
   const [commentHeights, setCommentHeights] = useState({}); // {paragraphId: [{label, height, color}, ...]}
 
+  // Track dismissed comments by paragraph ID and label
+  const [dismissedComments, setDismissedComments] = useState({}); // {paragraphId: Set(['Actionability', ...])}
+
   const textareaRef = useRef(null);
   const hiddenTextRef = useRef(null);
   const viewportRef = useRef(null);
@@ -622,23 +625,41 @@ export default function ReviewComponent() {
     }
   };
 
-  const getCommentBarColor = (paragraphId) => {
+  // Get visible comments for a paragraph (filtering out 'none' severity and dismissed comments)
+  const getVisibleComments = (paragraphId) => {
     const paragraphComments = commentsByParagraphId[paragraphId];
-    if (!paragraphComments || paragraphComments.length === 0) return null;
+    if (!paragraphComments || paragraphComments.length === 0) return [];
 
-    // Filter out 'none' severity items (score 5) - they shouldn't be displayed
-    const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
-    if (visibleComments.length === 0) return null;
+    const dismissed = dismissedComments[paragraphId] || new Set();
+    return paragraphComments.filter(c =>
+      c.severity !== 'none' && !dismissed.has(c.label)
+    );
+  };
 
+  // Handle dismissing a comment
+  const handleDismissComment = (paragraphId, label) => {
+    setDismissedComments(prev => {
+      const dismissed = new Set(prev[paragraphId] || []);
+      dismissed.add(label);
+      return { ...prev, [paragraphId]: dismissed };
+    });
+
+    // Clear comment heights for this paragraph to force re-measurement
+    setCommentHeights(prev => {
+      const updated = { ...prev };
+      delete updated[paragraphId];
+      return updated;
+    });
+  };
+
+  const getCommentBarColor = (paragraphId) => {
+    const visibleComments = getVisibleComments(paragraphId);
     // Return true if there are any visible comments (proportional rendering handles all cases)
-    return true;
+    return visibleComments.length > 0 ? true : null;
   };
 
   const getCommentSeverityCounts = (paragraphId) => {
-    const paragraphComments = commentsByParagraphId[paragraphId];
-    if (!paragraphComments) return { red: 0, yellow: 0 };
-
-    const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
+    const visibleComments = getVisibleComments(paragraphId);
     const redCount = visibleComments.filter(c => c.severity === 'red').length;
     const yellowCount = visibleComments.filter(c => c.severity === 'yellow').length;
 
@@ -671,8 +692,8 @@ export default function ReviewComponent() {
       Moderate: 0
     };
 
-    Object.values(commentsByParagraphId).forEach(comments => {
-      const visibleComments = comments.filter(c => c.severity !== 'none');
+    Object.keys(commentsByParagraphId).forEach(paragraphId => {
+      const visibleComments = getVisibleComments(parseInt(paragraphId));
       visibleComments.forEach(comment => {
         // Count by label
         if (stats.hasOwnProperty(comment.label)) {
@@ -692,10 +713,7 @@ export default function ReviewComponent() {
   // If no match found after that paragraph, wraps around to the first match
   const findFirstParagraphWith = (type, value, afterParagraphId = null) => {
     const matchesCriteria = (paragraph) => {
-      const comments = commentsByParagraphId[paragraph.id];
-      if (!comments) return false;
-
-      const visibleComments = comments.filter(c => c.severity !== 'none');
+      const visibleComments = getVisibleComments(paragraph.id);
       if (visibleComments.length === 0) return false;
 
       if (type === 'label') {
@@ -973,8 +991,7 @@ export default function ReviewComponent() {
 
               // Check if paragraph has been analyzed but has no visible comments
               const hasBeenAnalyzed = commentsByParagraphId[id] !== undefined;
-              const allComments = hasBeenAnalyzed ? commentsByParagraphId[id] : [];
-              const visibleComments = allComments.filter(c => c.severity !== 'none');
+              const visibleComments = getVisibleComments(id);
               const hasNoVisibleComments = hasBeenAnalyzed && visibleComments.length === 0;
 
               // Only render if there are comments OR paragraph is modified OR has no visible comments (show green bar)
@@ -985,27 +1002,39 @@ export default function ReviewComponent() {
 
               return (
                 <React.Fragment key={id}>
-                  {/* Connecting line - drawn behind comment bar, aligned with paragraph center */}
-                  {isOpen && (
-                    <svg
-                      className="absolute pointer-events-none z-5"
-                      style={{
-                        top: `${position.top + 10 + position.height / 2 - 1.5}px`,
-                        right: '-28.5px',
-                        width: '29px',
-                        height: '3px'
-                      }}
-                    >
-                      <line
-                        x1="21"
-                        y1="1.5"
-                        x2="0"
-                        y2="1.5"
-                        stroke="black"
-                        strokeWidth="3"
-                      />
-                    </svg>
-                  )}
+                  {/* Connecting line - aligned with first line of paragraph or green checkbox center */}
+                  {isOpen && (() => {
+                    let lineY;
+                    if (hasNoVisibleComments) {
+                      // Align with green checkbox center (paragraph center)
+                      lineY = position.top + 10 + position.height / 2 - 1.5;
+                    } else {
+                      // Align with first line of paragraph (assuming 18px line-height for 12px text with leading-normal)
+                      const firstLineHeight = 18;
+                      lineY = position.top + 10 + firstLineHeight / 2 - 1.5;
+                    }
+
+                    return (
+                      <svg
+                        className="absolute pointer-events-none z-5"
+                        style={{
+                          top: `${lineY}px`,
+                          right: '-28.5px',
+                          width: '29px',
+                          height: '3px'
+                        }}
+                      >
+                        <line
+                          x1="21"
+                          y1="1.5"
+                          x2="0"
+                          y2="1.5"
+                          stroke="black"
+                          strokeWidth="3"
+                        />
+                      </svg>
+                    );
+                  })()}
 
                   <div
                     onClick={() => handleCommentBarClick(id)}
@@ -1013,7 +1042,7 @@ export default function ReviewComponent() {
                     style={{
                       backgroundColor: 'transparent',
                       top: `${position.top + 10}px`,
-                      height: isOpen && commentTextRef.current
+                      height: isOpen && commentTextRef.current && !hasNoVisibleComments
                         ? `${commentTextRef.current.offsetHeight}px`
                         : `${position.height}px`,
                       right: isOpen ? '-28.5px' : '-8.5px'
@@ -1021,9 +1050,8 @@ export default function ReviewComponent() {
                   >
                     {/* Green square for paragraphs with no visible comments */}
                     {hasNoVisibleComments && (() => {
-                      const barHeight = isOpen && commentTextRef.current
-                        ? commentTextRef.current.offsetHeight
-                        : position.height;
+                      // When open with no visible comments, center on paragraph; otherwise use bar height
+                      const barHeight = isOpen ? position.height : position.height;
                       const squareSize = 16;
                       const yOffset = (barHeight - squareSize) / 2;
                       const allClosed = openCommentBar === null;
@@ -1241,8 +1269,8 @@ export default function ReviewComponent() {
             return (
               <div className="flex-1 font-normal text-[12px] text-black relative min-h-full">
                 {paragraphComments && (() => {
-                  // Filter out 'none' severity items (score 5) at display time
-                  const visibleComments = paragraphComments.filter(c => c.severity !== 'none');
+                  // Get visible comments (filtering out 'none' severity and dismissed)
+                  const visibleComments = getVisibleComments(openCommentBar);
 
                   // Simple top-aligned position
                   const commentTop = position ? position.top + 10 : 0;
@@ -1288,12 +1316,24 @@ export default function ReviewComponent() {
                             }
                           }}
                         >
-                          <p
-                            className="font-bold mb-0 not-italic"
-                            style={{ color: comment.severity === 'red' ? '#cc5656' : '#ffc700' }}
-                          >
-                            {comment.label}
-                          </p>
+                          <div className="flex items-center gap-[8px]">
+                            <p
+                              className="font-bold mb-0 not-italic"
+                              style={{ color: comment.severity === 'red' ? '#cc5656' : '#ffc700' }}
+                            >
+                              {comment.label}
+                            </p>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDismissComment(openCommentBar, comment.label);
+                              }}
+                              className="text-gray-400 hover:text-gray-600 text-[10px] cursor-pointer bg-transparent border-none p-0 leading-none"
+                              title="Dismiss this comment"
+                            >
+                              ✕
+                            </button>
+                          </div>
                           <p className="mb-0">{comment.text}</p>
                         </div>
                       ))}
