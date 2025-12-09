@@ -136,9 +136,6 @@ function generateWeightedScore() {
 async function getCommentsMock(paragraphs) {
   logInfo(`[MOCK MODE] Simulating API call for ${paragraphs.length} paragraphs`);
 
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, CONFIG.MOCK_DELAY_MS));
-
   const results = {};
 
   paragraphs.forEach(para => {
@@ -469,6 +466,7 @@ function transformApiResponse(paragraphs, apiResponse) {
  *
  * @param {Array<{id: number|string, content: string}>} paragraphs - Array of paragraphs to analyze
  * @param {Function} onProgress - Optional callback function(completedBatches, totalBatches, percentage)
+ * @param {string} mode - Optional mode override ('mock' or 'backend'), defaults to CONFIG.MODE
  * @returns {Promise<Object>} - Object keyed by paragraph id with comment data
  *
  * @example
@@ -480,14 +478,17 @@ function transformApiResponse(paragraphs, apiResponse) {
  * });
  * // Returns: { 1: { Actionability: {...}, ... }, 2: { ... } }
  */
-export async function getComments(paragraphs, onProgress = null) {
+export async function getComments(paragraphs, onProgress = null, mode = null) {
   if (!paragraphs || paragraphs.length === 0) {
     logWarn('getComments called with empty paragraphs array');
     return {};
   }
 
+  // Use provided mode or fall back to CONFIG.MODE
+  const effectiveMode = mode || CONFIG.MODE;
+
   // Check if we're in mock mode
-  if (CONFIG.MODE === 'mock') {
+  if (effectiveMode === 'mock') {
     return getCommentsMock(paragraphs);
   }
 
