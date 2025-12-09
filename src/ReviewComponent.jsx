@@ -758,8 +758,9 @@ export default function ReviewComponent() {
 
   return (
     <div className="bg-white box-border flex flex-col gap-[21px] items-center justify-center px-[22px] py-[15px] h-screen w-full">
-      {/* Loading indicator - progress bar aligned left of UPDATE/CANCEL button */}
-      {isLoading && (
+      {/* Label stats or Progress Bar - bottom left of UPDATE button */}
+      {isLoading ? (
+        /* Progress bar during update */
         <div className="absolute bottom-[10px] right-[155px] flex items-center gap-[10px]">
           {/* Progress bar container */}
           <div className="w-[200px] h-[20px] bg-gray-200 rounded-full overflow-hidden border border-gray-300">
@@ -786,6 +787,34 @@ export default function ReviewComponent() {
           <span className="text-blue-500 text-[14px]">
             {loadingProgress < 100 ? `${loadingWord}...` : 'Complete!'}
           </span>
+        </div>
+      ) : (
+        /* Label statistics when not loading */
+        <div className="absolute font-normal text-[12px] text-black bottom-[10px] right-[155px] flex gap-[15px] items-center">
+          {['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'].map(label => {
+            const count = stats[label];
+            const paragraph = count > 0 ? findFirstParagraphWith('label', label, openCommentBar) : null;
+
+            return (
+              <span key={label} className="relative group">
+                {count > 0 ? (
+                  <button
+                    onClick={() => handleStatClick('label', label)}
+                    className="cursor-pointer hover:underline"
+                  >
+                    {label} ({count})
+                  </button>
+                ) : (
+                  <span className="text-gray-400">{label} ({count})</span>
+                )}
+                {paragraph && count > 0 && (
+                  <span className="absolute hidden group-hover:block bg-black text-white text-[10px] px-[6px] py-[3px] rounded whitespace-nowrap bottom-full left-0 mb-1 z-50">
+                    {getFirst7Words(paragraph.currentContent)}
+                  </span>
+                )}
+              </span>
+            );
+          })}
         </div>
       )}
 
@@ -818,35 +847,8 @@ export default function ReviewComponent() {
         Edit your review:
       </p>
 
-      {/* Statistics Bar */}
+      {/* Severity Statistics Bar - Top Right */}
       <div className="absolute font-normal text-[12px] text-black top-[15px] right-[22px] flex gap-[15px] items-center">
-        {/* Label counts */}
-        {['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'].map(label => {
-          const count = stats[label];
-          // Find next paragraph that would be navigated to (after current open comment, or first if none open)
-          const paragraph = count > 0 ? findFirstParagraphWith('label', label, openCommentBar) : null;
-
-          return (
-            <span key={label} className="relative group">
-              {count > 0 ? (
-                <button
-                  onClick={() => handleStatClick('label', label)}
-                  className="cursor-pointer hover:underline"
-                >
-                  {label} ({count})
-                </button>
-              ) : (
-                <span className="text-gray-400">{label} ({count})</span>
-              )}
-              {paragraph && count > 0 && (
-                <span className="absolute hidden group-hover:block bg-black text-white text-[10px] px-[6px] py-[3px] rounded whitespace-nowrap top-full left-0 mt-1 z-50">
-                  {getFirst7Words(paragraph.currentContent)}
-                </span>
-              )}
-            </span>
-          );
-        })}
-
         {/* Severity counts */}
         <span className="relative group">
           {stats.Critical > 0 ? (
