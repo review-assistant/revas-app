@@ -1081,6 +1081,17 @@ export default function ReviewComponent() {
                           height={position.height}
                           style={{ height: '100%' }}
                         >
+                          {/* Define crosshatch patterns for closed bars */}
+                          <defs>
+                            <pattern id={`crosshatch-red-${id}`} patternUnits="userSpaceOnUse" width="4" height="4">
+                              <rect width="4" height="4" fill="white" />
+                              <path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#cc5656" strokeWidth="1" />
+                            </pattern>
+                            <pattern id={`crosshatch-yellow-${id}`} patternUnits="userSpaceOnUse" width="4" height="4">
+                              <rect width="4" height="4" fill="white" />
+                              <path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#ffc700" strokeWidth="1" />
+                            </pattern>
+                          </defs>
                           {/* Red bar (top portion, 0% if no red comments) */}
                           {counts.red > 0 && (
                             <rect
@@ -1088,7 +1099,7 @@ export default function ReviewComponent() {
                               y="1"
                               width="14"
                               height={redHeight - (counts.yellow > 0 ? 1 : 2)}
-                              fill={isClosed ? 'white' : '#cc5656'}
+                              fill={isClosed ? `url(#crosshatch-red-${id})` : '#cc5656'}
                               stroke="#cc5656"
                               strokeWidth="2"
                             />
@@ -1100,7 +1111,7 @@ export default function ReviewComponent() {
                               y={redHeight + (counts.red > 0 ? 0 : 1)}
                               width="14"
                               height={position.height - redHeight - (counts.red > 0 ? 1 : 2)}
-                              fill={isClosed ? 'white' : '#ffc700'}
+                              fill={isClosed ? `url(#crosshatch-yellow-${id})` : '#ffc700'}
                               stroke="#ffc700"
                               strokeWidth="2"
                             />
