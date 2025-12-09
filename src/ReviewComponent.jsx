@@ -23,7 +23,13 @@ const scoreToSeverity = (score) => {
   return 'none';
 };
 
-const initialReviewText = `Limited insights from the analysis. I appreciate the attempt of the authors to propose a new algorithm to analyze the impact of the context to reasoning path of LLMs, however, beyond the algorithm itself I don't see much new insights from the analysis. For example, one main finding from the paper is "good context can lead to incorrect answers and bad context can lead to correct answers,", this is not new and has been revealed from previous work (e.g., [1]). I would like to see the authors do more in-depth analysis with their method.
+const initialReviewText = `There is a typo in the Title, 'the the'.
+
+The author's name is misspelled (in the author list)
+
+The Abstract is not for this paper, it is the abstract from 'Green Eggs and Ham, a retrospective analysis'.
+
+Limited insights from the analysis. I appreciate the attempt of the authors to propose a new algorithm to analyze the impact of the context to reasoning path of LLMs, however, beyond the algorithm itself I don't see much new insights from the analysis. For example, one main finding from the paper is "good context can lead to incorrect answers and bad context can lead to correct answers,", this is not new and has been revealed from previous work (e.g., [1]). I would like to see the authors do more in-depth analysis with their method.
 
 
 
@@ -965,8 +971,14 @@ export default function ReviewComponent() {
               const color = getCommentBarColor(id);
               const isModified = isParagraphModified(id);
 
-              // Only render if there are comments OR if the paragraph is modified
-              if (!color && !isModified) return null;
+              // Check if paragraph has been analyzed but has no visible comments
+              const hasBeenAnalyzed = commentsByParagraphId[id] !== undefined;
+              const allComments = hasBeenAnalyzed ? commentsByParagraphId[id] : [];
+              const visibleComments = allComments.filter(c => c.severity !== 'none');
+              const hasNoVisibleComments = hasBeenAnalyzed && visibleComments.length === 0;
+
+              // Only render if there are comments OR paragraph is modified OR has no visible comments (show green bar)
+              if (!color && !isModified && !hasNoVisibleComments) return null;
 
               const isOpen = openCommentBar === id;
               const isClosed = openCommentBar !== null && !isOpen;
@@ -1007,6 +1019,54 @@ export default function ReviewComponent() {
                       right: isOpen ? '-28.5px' : '-8.5px'
                     }}
                   >
+                    {/* Green square for paragraphs with no visible comments */}
+                    {hasNoVisibleComments && (() => {
+                      const barHeight = isOpen && commentTextRef.current
+                        ? commentTextRef.current.offsetHeight
+                        : position.height;
+                      const squareSize = 16;
+                      const yOffset = (barHeight - squareSize) / 2;
+                      const allClosed = openCommentBar === null;
+
+                      return (
+                        <svg
+                          className="absolute left-0 top-0 pointer-events-none"
+                          width="16"
+                          height={barHeight}
+                          style={{ height: '100%' }}
+                        >
+                          {/* Crosshatch pattern for closed green bars */}
+                          <defs>
+                            <pattern id={`crosshatch-green-${id}`} patternUnits="userSpaceOnUse" width="4" height="4">
+                              <rect width="4" height="4" fill="white" />
+                              <path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#32CD32" strokeWidth="1" />
+                            </pattern>
+                          </defs>
+                          {/* Green square - solid when all closed or this is open, crosshatch when closed */}
+                          <rect
+                            x="0"
+                            y={yOffset}
+                            width={squareSize}
+                            height={squareSize}
+                            fill={isClosed ? `url(#crosshatch-green-${id})` : '#32CD32'}
+                            stroke="#32CD32"
+                            strokeWidth={isClosed ? "2" : "0"}
+                          />
+                          {/* White checkmark only when this bar is open */}
+                          {isOpen && (
+                            <path
+                              d={`M4,${yOffset + 8} L6.5,${yOffset + 10.5} L12,${yOffset + 5}`}
+                              stroke="white"
+                              strokeWidth="2"
+                              fill="none"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          )}
+                        </svg>
+                      );
+                    })()}
+
                     {/* Segmented bars when open, proportional when closed */}
                     {color && (() => {
 
