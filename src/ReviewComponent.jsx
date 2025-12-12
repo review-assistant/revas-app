@@ -885,8 +885,8 @@ export default function ReviewComponent() {
         Edit your review:
       </p>
 
-      {/* Severity Statistics Bar - Top Right */}
-      <div className="absolute font-normal text-[12px] text-black top-[15px] right-[22px] flex gap-[15px] items-center">
+      {/* Severity Statistics Bar - Centered */}
+      <div className="absolute font-normal text-[12px] text-black top-[21px] left-1/2 -translate-x-1/2 flex gap-[15px] items-center">
         {/* Severity counts */}
         <span className="relative group">
           {stats.Critical > 0 ? (
