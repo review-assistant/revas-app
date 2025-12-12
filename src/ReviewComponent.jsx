@@ -143,9 +143,25 @@ export default function ReviewComponent() {
 
   // Update paragraph IDs when text changes
   useEffect(() => {
-    if (paragraphsWithIds.length === 0) return; // Wait for initialization
-
     const newParagraphTexts = getParagraphs(reviewText);
+
+    // If starting from empty, create all new paragraphs
+    if (paragraphsWithIds.length === 0 && newParagraphTexts.length > 0) {
+      const newParagraphs = newParagraphTexts.map((content, index) => ({
+        id: nextParagraphIdRef.current++,
+        originalContent: '', // Empty to indicate new paragraph
+        currentContent: content
+      }));
+      setParagraphsWithIds(newParagraphs);
+      return;
+    }
+
+    // If no paragraphs exist anymore, reset
+    if (newParagraphTexts.length === 0) {
+      setParagraphsWithIds([]);
+      return;
+    }
+
     const { matched, unmatchedNewIndices } = matchParagraphs(paragraphsWithIds, newParagraphTexts);
 
     // Build updated paragraph list
