@@ -32,21 +32,23 @@ test.describe('Review Component', () => {
     // Verify main components are visible
     await expect(page.locator('text=Edit your review:')).toBeVisible()
     await expect(page.locator('textarea')).toBeVisible()
-    await expect(page.locator('text=UPDATE')).toBeVisible()
+
+    // Use more specific selector for UPDATE button
+    const updateButton = page.getByRole('button', { name: 'UPDATE' })
+    await expect(updateButton).toBeVisible()
 
     // Type some review text
     await page.fill('textarea', 'This is a test paragraph for review.\n\nSecond paragraph here.')
 
     // UPDATE button should become blue (active)
-    const updateButton = page.locator('text=UPDATE')
-    await expect(updateButton).toHaveClass(/bg-blue-600/)
+    await expect(updateButton).toHaveClass(/bg-\[#4a90e2\]/)
 
     // Click update
     await updateButton.click()
 
     // Should show progress or complete
     // Wait for update to finish (button becomes gray again)
-    await expect(updateButton).toHaveClass(/bg-gray-400/, { timeout: 30000 })
+    await expect(updateButton).toHaveClass(/bg-\[#d9d9d9\]/, { timeout: 30000 })
   })
 
   test('Mock button loads sample text', async ({ page }) => {

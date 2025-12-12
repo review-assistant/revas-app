@@ -6,13 +6,18 @@ import { test, expect } from '@playwright/test'
  */
 
 test.describe('Account Settings', () => {
-  const timestamp = Date.now()
-  const testEmail = `account-test-${timestamp}@example.com`
   const testPassword = 'testpass123'
   let newPassword = 'newpass456'
 
+  // Helper function to generate unique email for each test (prevents parallel execution conflicts)
+  function generateTestEmail() {
+    return `account-test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`
+  }
+
   // Helper function to create a test user and login
   async function createAndLoginUser(page) {
+    const testEmail = generateTestEmail()
+
     await page.goto('/')
     await page.click('text=Sign up')
     await page.fill('input[name="firstName"]', 'Account')
@@ -24,10 +29,12 @@ test.describe('Account Settings', () => {
 
     // Wait for login to complete
     await expect(page.locator(`text=${testEmail}`)).toBeVisible({ timeout: 10000 })
+
+    return testEmail // Return email so test can use it
   }
 
   test('@smoke Edit profile information', async ({ page }) => {
-    await createAndLoginUser(page)
+    const testEmail = await createAndLoginUser(page)
 
     // Navigate to account settings
     await page.click(`text=${testEmail}`)
@@ -59,7 +66,7 @@ test.describe('Account Settings', () => {
   })
 
   test('Change password', async ({ page }) => {
-    await createAndLoginUser(page)
+    const testEmail = await createAndLoginUser(page)
 
     // Navigate to account settings
     await page.click(`text=${testEmail}`)
@@ -93,7 +100,7 @@ test.describe('Account Settings', () => {
   })
 
   test('Password change validation', async ({ page }) => {
-    await createAndLoginUser(page)
+    const testEmail = await createAndLoginUser(page)
 
     await page.click(`text=${testEmail}`)
     await page.click('text=Account Settings')
@@ -115,7 +122,7 @@ test.describe('Account Settings', () => {
   })
 
   test('@smoke Export user data (GDPR)', async ({ page }) => {
-    await createAndLoginUser(page)
+    const testEmail = await createAndLoginUser(page)
 
     await page.click(`text=${testEmail}`)
     await page.click('text=Account Settings')
@@ -134,17 +141,17 @@ test.describe('Account Settings', () => {
   })
 
   test('@smoke Delete account flow', async ({ page }) => {
-    await createAndLoginUser(page)
+    const testEmail = await createAndLoginUser(page)
 
     await page.click(`text=${testEmail}`)
     await page.click('text=Account Settings')
 
     // Open delete modal
     await page.click('text=Delete My Account')
-    await expect(page.locator('text=Delete Account')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Delete Account' })).toBeVisible()
 
     // Verify confirmation is required
-    const modalDeleteButton = page.locator('button:has-text("Delete Account")').nth(1)
+    const modalDeleteButton = page.getByRole('button', { name: 'Delete Account' })
     await expect(modalDeleteButton).toBeDisabled()
 
     // Type DELETE to enable
@@ -165,17 +172,17 @@ test.describe('Account Settings', () => {
   })
 
   test('Cancel account deletion', async ({ page }) => {
-    await createAndLoginUser(page)
+    const testEmail = await createAndLoginUser(page)
 
     await page.click(`text=${testEmail}`)
     await page.click('text=Account Settings')
 
     // Open delete modal
     await page.click('text=Delete My Account')
-    await expect(page.locator('text=Delete Account')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Delete Account' })).toBeVisible()
 
     // Cancel
-    await page.click('button:has-text("Cancel")')
+    await page.getByRole('button', { name: 'Cancel' }).click()
 
     // Modal should close
     await expect(page.locator('text=Type DELETE to confirm')).not.toBeVisible()
