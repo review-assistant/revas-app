@@ -77,7 +77,7 @@ describe('ReviewComponent', () => {
   })
 
   describe('Mock Button', () => {
-    it('loads sample text when Mock button is clicked', async () => {
+    it('processes text when Mock button is clicked', async () => {
       const user = userEvent.setup()
       getComments.mockResolvedValue({
         'p-0': {
@@ -87,12 +87,21 @@ describe('ReviewComponent', () => {
 
       render(<ReviewComponent />)
 
-      await user.click(screen.getByRole('button', { name: 'MOCK' }))
-
       const textarea = screen.getByRole('textbox')
+
+      // Type some text to enable the Mock button
+      await user.type(textarea, 'Test paragraph for mock processing.')
+
+      // Mock button should be enabled now
+      const mockButton = screen.getByRole('button', { name: 'MOCK' })
+      expect(mockButton).toBeEnabled()
+
+      // Click mock button
+      await user.click(mockButton)
+
+      // Verify getComments was called
       await waitFor(() => {
-        // SAMPLE_REVIEW_TEXT from commentsClient contains this text
-        expect(textarea.value).toContain('Limited insights from the analysis')
+        expect(getComments).toHaveBeenCalled()
       })
     })
   })

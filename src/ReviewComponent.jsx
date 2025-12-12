@@ -23,39 +23,10 @@ const scoreToSeverity = (score) => {
   return 'none';
 };
 
-const initialReviewText = `There is a typo in the Title, 'the the'.
-
-The author's name is misspelled (in the author list)
-
-The Abstract is not for this paper, it is the abstract from 'Green Eggs and Ham, a retrospective analysis'.
-
-Limited insights from the analysis. I appreciate the attempt of the authors to propose a new algorithm to analyze the impact of the context to reasoning path of LLMs, however, beyond the algorithm itself I don't see much new insights from the analysis. For example, one main finding from the paper is "good context can lead to incorrect answers and bad context can lead to correct answers,", this is not new and has been revealed from previous work (e.g., [1]). I would like to see the authors do more in-depth analysis with their method.
-
-
-
-Lack of experiments. One of the main contribution claimed by the authors is the proposed methods leading to more accurate reasoning of LLMs, however, it is not well supported by the experiment:- The paper only compares with self-consistency method, but doesn't compare with other state-of-the-art baselines such as Tree of Thoughts or Graph of Thoughts.- The method improves over self-consistency (Table 2) but it is quite marginal (<=2%). Is that statistical significant? Even if so, how do we justify the significantly increased complexity introduced by the method (tree constructing and maintenance etc)? It is worth mentioning in the paper.- If the claim is about improvement of reasoning correctness on the reasoning path, there is no evaluation results to verify whether the reasoning path quality has improved.
-
-
-
-
-
-
-I think the paper need improvement on the writing, here are a few examples:- Long sequences in the paper are not easy to follow. For example, line 13-17 in the abstract;- Fix the citation in line 62-64, and line 256.- Figure 3, it is not clear what is the difference between 3 plots on the same row. I think caption should be added to emphasize that.- As mentioned above, section 3.3 should be expanded to include more details, e.g., what metrics are used? How should we interpret the results? reference:[1] Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting
-
-What's the motivation for calculating the upperbound of variations for uncertainty quantification? As shown in Eq 1. The objective is to estimate the variance given an different parameters initializations. To solve this, the DNN is first linearized locally with the NTK theory and the upperbound for introducing the changes are calculated with the NTK theory. The paradox is if the parameters can be already be perturbed, why NTK is needed for calculating the upperbound. Besides, calculating the upperbound will bring biased estimations of uncertainty. Another simple way to achieve this might be directly apply random perturbations to the network parameters (like random noises injection, dropout parameters), can easily get ensemble of neural network parameters. What is the advantage over these methods?
-
-Given that $\\lambda \\in\\{\\sqrt{o}, 3 \\sqrt{o}\\}$, where $o$ represents the number of output dimensions, why does Figure 4 only explore the range of $\\lambda$ values between 0 and 3 on ImageNet-200? The authors should consider exploring a broader range of this hyperparameter.
-
-The authors mention that TULiP is over three times faster than ViM, noting that ViM takes more than 30 minutes just to extract ID information on a recent GPU machine. However, it appears that the proposed method requires $M=10$ forward passes per sample for OOD detection. Compared to classic OOD detectors like EBO, does this imply that the detection speed of the proposed method is relatively slower?
-
-In the experiments, the authors calculated Equation 8 using 256 samples from the ID dataset (ImageNet-1K) and 128 samples per OOD dataset. However, the authors do not clarify how these 256 ID samples and 128 OOD samples were selected or whether OOD samples align with test samples. Additionally, did the authors know beforehand which samples were ID and OOD when using these samples?
-
-Have the authors considered the impact of different types of OOD data? For example, have the authors considered situations where OOD data is very far from ID data to improve detection of far-OOD.`;
-
 export default function ReviewComponent() {
-  const [reviewText, setReviewText] = useState(initialReviewText);
-  const [originalText, setOriginalText] = useState(''); // Start empty so update button is active
-  const [isModified, setIsModified] = useState(true); // Start as modified
+  const [reviewText, setReviewText] = useState('');
+  const [originalText, setOriginalText] = useState('');
+  const [isModified, setIsModified] = useState(false)
   const [openCommentBar, setOpenCommentBar] = useState(null); // Start with no comment bar open
   const [paragraphPositions, setParagraphPositions] = useState({});
   const [scrollTop, setScrollTop] = useState(0);
@@ -91,7 +62,7 @@ export default function ReviewComponent() {
 
   // Initialize paragraph IDs on first render
   useEffect(() => {
-    const initialParagraphTexts = getParagraphs(initialReviewText);
+    const initialParagraphTexts = getParagraphs(reviewText);
 
     // Create initial paragraphs with stable IDs and empty originalContent
     // This makes all paragraphs appear as "new" with dotted rectangles
@@ -959,6 +930,41 @@ export default function ReviewComponent() {
               className="font-normal text-[12px] text-black w-full resize-none border-none outline-none bg-transparent leading-normal overflow-hidden"
               style={{ minHeight: '100%' }}
             />
+
+            {/* Welcome message overlay - shown when textarea is empty */}
+            {reviewText === '' && (
+              <div
+                className="absolute inset-0 flex items-center justify-center cursor-text"
+                onClick={() => textareaRef.current?.focus()}
+              >
+                <div className="text-center text-gray-400 font-normal text-[12px] leading-relaxed px-[20px]">
+                  Welcome to Revas, the Review Assistant.
+                  <br />
+                  We want to help you write more helpful, actionable reviews.
+                  <br />
+                  <br />
+                  To begin, type or paste your review text here.
+                  <br />
+                  <br />
+                  Separate each of your review concerns with a blank line.
+                  <br />
+                  <br />
+                  Press "Update" to get comments on the actionability, helpfulness,
+                  <br />
+                  grounding, and verifiability for each of your concerns as written.
+                  <br />
+                  <br />
+                  Continue editing in this window to address comments
+                  <br />
+                  (then "Update" again)
+                  <br />
+                  <br />
+                  When you are done, select and copy your review text to export it elsewhere
+                  <br />
+                  (at least until we have an export button!)
+                </div>
+              </div>
+            )}
 
             {/* Hidden text with paragraph spans for alignment calculations */}
             <div
