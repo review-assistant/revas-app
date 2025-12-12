@@ -76,35 +76,6 @@ describe('ReviewComponent', () => {
     })
   })
 
-  describe('Mock Button', () => {
-    it('processes text when Mock button is clicked', async () => {
-      const user = userEvent.setup()
-      getComments.mockResolvedValue({
-        'p-0': {
-          Actionability: { score: 2, text: 'Test comment' }
-        }
-      })
-
-      render(<ReviewComponent />)
-
-      const textarea = screen.getByRole('textbox')
-
-      // Type some text to enable the Mock button
-      await user.type(textarea, 'Test paragraph for mock processing.')
-
-      // Mock button should be enabled now
-      const mockButton = screen.getByRole('button', { name: 'MOCK' })
-      expect(mockButton).toBeEnabled()
-
-      // Click mock button
-      await user.click(mockButton)
-
-      // Verify getComments was called
-      await waitFor(() => {
-        expect(getComments).toHaveBeenCalled()
-      })
-    })
-  })
 
   describe('Comment Updates', () => {
     it('calls getComments when UPDATE is clicked', async () => {

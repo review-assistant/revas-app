@@ -378,17 +378,6 @@ The sections below provide detailed manual testing procedures for comprehensive 
 
 ## Review Component Testing
 
-### Mock Data Mode
-
-The application includes a "Mock" button for testing with simulated data.
-
-1. Login to application
-2. Click the "Mock" button in the upper left
-3. **Expected Result:**
-   - Text area populates with sample review text
-   - Comment bars appear aligned with paragraphs
-   - Statistics update (Critical/Moderate counts)
-
 ### Text Editing
 
 1. Type or paste text into the textarea
@@ -685,25 +674,9 @@ Test timeout behavior with very large inputs:
 3. Run test
 4. **Expected:** Either completes within timeout or fails with timeout error
 
-**Test 9: Mock vs. Backend Comparison**
-
-Compare mock mode performance against real API:
-
-```bash
-# Mock mode (set MODE: 'mock')
-time node src/commentsClient.js --file test.txt
-
-# Backend mode (set MODE: 'backend')
-time node src/commentsClient.js --file test.txt
-```
-
-**Expected:**
-- Mock mode: Consistent, predictable timing (~5s + overhead)
-- Backend mode: Variable, depends on API load
-
 ### Browser Performance Tests
 
-**Test 10: UI Responsiveness During Update**
+**Test 9: UI Responsiveness During Update**
 
 1. Load application with large review text (50+ paragraphs)
 2. Click UPDATE button
@@ -715,7 +688,7 @@ time node src/commentsClient.js --file test.txt
 - Can click other elements during update
 - Memory usage stays reasonable
 
-**Test 11: Comment Panel Rendering**
+**Test 10: Comment Panel Rendering**
 
 1. Load review with many comments
 2. Rapidly click different comment bars

@@ -148,10 +148,6 @@ npm run test:coverage
 
 ## Comment System
 
-### Mock Data for Testing
-
-The application includes mock comment generation for testing. Click the **"Mock" button** in the toolbar to populate the editor with sample text and comments.
-
 **Comment Evaluation:**
 - Evaluates paragraphs on four dimensions: **Actionability**, **Helpfulness**, **Grounding**, and **Verifiability**
 - Scores range from 1-5 for each dimension
@@ -180,7 +176,6 @@ Comment generation is handled by `src/commentsClient.js`. See that file for:
 - API endpoint configuration
 - Expected API request/response formats
 - Batch processing and retry logic
-- Mode switching (mock vs. backend)
 
 ## Account Management
 

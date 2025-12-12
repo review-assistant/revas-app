@@ -1,0 +1,80 @@
+backend server address:
+http://10.127.105.10:8888/
+
+put this in a configuration dictionary at the top of the file for now.
+Later we will implement configuration files separately from the code.
+
+Example:
+
+Client sends request with a list of review paragraphs.  Instead of
+sending all of these to the server at once, break them into smaller
+batches and send each separately, asynchronously. This will increase
+parallelism and decrease the overall time to process the input
+list. The server has a maximum batch size of 128. Make the api batch
+size a configurable parameter less than this.
+
+The server request is formatted like this (the "points" field is the list of paragraphs):
+
+curl -X 'POST' \   
+'http://10.127.105.10:8888/get_comments/v1/jobs' \   
+-H 'accept: application/json' \   
+-H 'Content-Type: application/json' \   
+-d '{   "points": [    “This is a test.", "This is another test.", "This is the last test."  ] }'
+
+ 
+Server returns job id and status:
+
+{  "job_id": "dc4e6eab-4a6c-46e7-a682-2232aec417e2",  "status": "queued" }
+
+
+Then client asks job results in a loop:
+
+curl -X 'GET' \   
+'http://10.127.105.10:8888/get_comments/v1/jobs/dc4e6eab-4a6c-46e7-a682-2232aec417e2' \   
+-H 'accept: application/json'
+
+
+Once job completed, it is “completed”. Other possible values:  "queued", "running", "completed", "failed". Include logic to re-try a failed request a configurable number of times.
+
+in the server response results list, "text" is the input paragraph, "aspects" is the list of label categories, and "rationale" is the comment text.
+
+{
+  "job_id": "dc4e6eab-4a6c-46e7-a682-2232aec417e2",
+  "status": "completed",
+  "created_at": 1765023883.9087398,
+  "updated_at": 1765023890.7253237,
+  "response": {
+    "request_id": "da1dded2-c5ac-444c-8039-7ad741f1bc61",
+    "model": "k-chirkunov/RevUtil_merged_model",
+    "results": [
+      {
+        "index": 1,
+        "text": "string",
+        "aspects": {
+          "actionability": {
+            "score": "1",
+            "rationale": "The review point consists of a single word, \"string,\" without any context, explanation, or guidance on what it refers to or how it relates to the paper. As a result, the authors are left without any actionable information or direction on how to improve their draft. The comment lacks meaningful content, making it unactionable."
+          },
+          "grounding_specificity": {
+            "score": "1",
+            "rationale": "The comment consists of a single word, \"string,\" without any context or explanation. It does not provide any information about which part of the paper it refers to, nor does it specify what aspect of the paper is being addressed. The authors cannot confidently determine which part of the paper this comment pertains to, nor does it offer any guidance on what needs to be addressed. Therefore, this comment is not grounded and highly unspecific, aligning with a score of 1."
+          },
+          "verifiability": {
+            "score": "X",
+            "rationale": "The review point consists of a single word, \"string,\" without any context, explanation, or supporting evidence. It does not contain any claims, opinions, or suggestions that require verification. Therefore, it is classified as \"No.\""
+          },
+          "helpfulness": {
+            "score": "1",
+            "rationale": "The review point consists of a single word, \"string,\" without any context, explanation, or guidance. It does not provide any meaningful feedback or suggestions for improvement, leaving the authors without any actionable insights or direction on how to enhance their draft. Without specific details or examples, the comment is not helpful at all, as it does not offer any value in terms of improving the paper. Therefore, it aligns with a score of 1."
+          }
+        },
+        "error": null
+      }
+    ],
+    "latency_ms": 6816
+  },
+  "error": null
+}
+
+Log all traffic with the server to the console with configurable severity filtering.
+

@@ -423,7 +423,7 @@ export default function ReviewComponent() {
     }
   }, [isDragging, reviewTextWidth]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleUpdate = async (mode = null) => {
+  const handleUpdate = async () => {
     if (!isModified) return;
 
     // Create unique ID for this request
@@ -437,8 +437,7 @@ export default function ReviewComponent() {
         content: p.currentContent
       }));
 
-    const modeLabel = mode === 'mock' ? 'MOCK' : 'BACKEND';
-    console.log(`[${modeLabel}] Updating comments for modified paragraphs (request #${requestId}):`, modifiedParagraphs);
+    console.log(`[BACKEND] Updating comments for modified paragraphs (request #${requestId}):`, modifiedParagraphs);
 
     // Set loading state and reset progress
     // Randomly select a thinking word for this loading session
@@ -467,16 +466,16 @@ export default function ReviewComponent() {
     setLoadingWord(randomWord);
 
     try {
-      // Call getComments function with progress callback and optional mode override
+      // Call getComments function with progress callback
       const commentResults = await getComments(modifiedParagraphs, (completed, total, percentage) => {
         // Only update progress if this request is still current
         if (requestId === currentRequestIdRef.current) {
           setLoadingProgress(percentage);
-          console.log(`[${modeLabel}] Progress: ${completed}/${total} batches (${percentage}%)`);
+          console.log(`[BACKEND] Progress: ${completed}/${total} batches (${percentage}%)`);
         } else {
-          console.log(`[${modeLabel}] Ignoring progress from stale request #${requestId} (current is #${currentRequestIdRef.current})`);
+          console.log(`[BACKEND] Ignoring progress from stale request #${requestId} (current is #${currentRequestIdRef.current})`);
         }
-      }, mode);
+      });
 
       // Check if this request is still current (not cancelled or superseded)
       if (requestId !== currentRequestIdRef.current) {
@@ -757,7 +756,7 @@ export default function ReviewComponent() {
       {/* Label stats or Progress Bar - bottom left of UPDATE button */}
       {isLoading ? (
         /* Progress bar during update */
-        <div className="absolute bottom-[10px] right-[303px] flex items-center gap-[10px]">
+        <div className="absolute bottom-[10px] right-[169px] flex items-center gap-[10px]">
           {/* Progress bar container */}
           <div className="w-[200px] h-[20px] bg-gray-200 rounded-full overflow-hidden border border-gray-300">
             {/* Progress bar fill */}
@@ -786,7 +785,7 @@ export default function ReviewComponent() {
         </div>
       ) : (
         /* Label statistics when not loading */
-        <div className="absolute font-normal text-[12px] text-black bottom-[10px] right-[303px] flex gap-[15px] items-center">
+        <div className="absolute font-normal text-[12px] text-black bottom-[10px] right-[169px] flex gap-[15px] items-center">
           {['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'].map(label => {
             const count = stats[label];
             const paragraph = count > 0 ? findFirstParagraphWith('label', label, openCommentBar) : null;
@@ -818,7 +817,7 @@ export default function ReviewComponent() {
       {isLoading ? (
         <button
           onClick={handleCancel}
-          className="absolute bottom-[10px] right-[156px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[119px] border border-black bg-[#6c757d] cursor-pointer transition-colors duration-200"
+          className="absolute bottom-[10px] right-[22px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[119px] border border-black bg-[#6c757d] cursor-pointer transition-colors duration-200"
         >
           <span className="font-normal text-[20px] text-white leading-none">
             CANCEL
@@ -828,7 +827,7 @@ export default function ReviewComponent() {
         <button
           onClick={handleUpdate}
           disabled={!isModified}
-          className={`absolute bottom-[10px] right-[156px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[119px] border border-black ${
+          className={`absolute bottom-[10px] right-[22px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[119px] border border-black ${
             isModified ? 'bg-[#4a90e2] cursor-pointer' : 'bg-[#d9d9d9] cursor-not-allowed'
           } transition-colors duration-200`}
         >
@@ -837,19 +836,6 @@ export default function ReviewComponent() {
           </span>
         </button>
       )}
-
-      {/* MOCK Button */}
-      <button
-        onClick={() => handleUpdate('mock')}
-        disabled={!isModified || isLoading}
-        className={`absolute bottom-[10px] right-[22px] box-border flex items-center justify-center px-[38px] py-[13px] rounded-[23px] h-[23px] w-[110px] border border-black ${
-          isModified && !isLoading ? 'bg-[#9b59b6] cursor-pointer' : 'bg-[#d9d9d9] cursor-not-allowed'
-        } transition-colors duration-200`}
-      >
-        <span className="font-normal text-[20px] text-white leading-none">
-          MOCK
-        </span>
-      </button>
 
       {/* Header */}
       <p className="absolute font-normal text-[20px] text-black top-[15px] left-[22px] w-[1036px]">
