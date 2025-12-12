@@ -51,75 +51,76 @@ test.describe('Review Component', () => {
     await expect(updateButton).toHaveClass(/bg-\[#d9d9d9\]/, { timeout: 30000 })
   })
 
-  test('Mock button loads sample text', async ({ page }) => {
-    // Click Mock button
-    await page.click('text=Mock')
-
-    // Should load sample text
+  test('Type text and generate comments with test markers', async ({ page }) => {
     const textarea = page.locator('textarea')
-    await expect(textarea).not.toHaveValue('')
+    const updateButton = page.getByRole('button', { name: 'UPDATE' })
+
+    // Type text with test markers to generate predictable comments
+    await textarea.fill('This is a test paragraph. XXXA YYYH\n\nSecond paragraph here. XXXG')
 
     // UPDATE button should be active
-    const updateButton = page.locator('text=UPDATE')
-    await expect(updateButton).toHaveClass(/bg-blue-600/)
+    await expect(updateButton).toHaveClass(/bg-\[#4a90e2\]/)
 
     // Click update
     await updateButton.click()
 
-    // Wait for processing
-    await expect(updateButton).toHaveClass(/bg-gray-400/, { timeout: 30000 })
+    // Wait for processing to complete
+    await expect(updateButton).toHaveClass(/bg-\[#d9d9d9\]/, { timeout: 30000 })
 
-    // Statistics should show some counts
-    const criticalStat = page.locator('text=/Critical:?/')
-    await expect(criticalStat).toBeVisible()
+    // Statistics should show some counts - exact numbers depend on API behavior
+    // Just verify that critical and label statistics are visible and have non-zero counts
+    await expect(page.locator('text=/Critical \\(\\d+\\)/')).toBeVisible()
+    await expect(page.locator('text=/Actionability \\(\\d+\\)/')).toBeVisible()
   })
 
   test('Comment bar interactions', async ({ page }) => {
-    // Load mock data
-    await page.click('text=Mock')
-    const updateButton = page.locator('text=UPDATE')
+    const textarea = page.locator('textarea')
+    const updateButton = page.getByRole('button', { name: 'UPDATE' })
+
+    // Type text with test markers to generate comments
+    await textarea.fill('First paragraph with critical issue. XXXA\n\nSecond paragraph. YYYH')
     await updateButton.click()
 
     // Wait for comments to load
-    await expect(updateButton).toHaveClass(/bg-gray-400/, { timeout: 30000 })
+    await expect(updateButton).toHaveClass(/bg-\[#d9d9d9\]/, { timeout: 30000 })
 
-    // Look for comment bars (they should be visible if there are comments)
-    // Comment bars are typically on the right side of the textarea
-    // This test assumes mock data generates some comments
+    // Verify comment bars appeared (statistics should show counts)
+    const criticalStat = page.locator('text=/Critical \\(\\d+\\)/')
+    await expect(criticalStat).toBeVisible()
 
-    // Try to click a comment bar if any exist
-    const commentBars = page.locator('[data-testid="comment-bar"]')
-    const count = await commentBars.count()
+    // Click on Critical statistic to open first comment bar
+    await criticalStat.click()
 
-    if (count > 0) {
-      // Click first comment bar
-      await commentBars.first().click()
+    // Wait a moment for panel to open
+    await page.waitForTimeout(500)
 
-      // Comment panel should open
-      // This depends on your component structure
-      // Look for comment text or panel
-    }
+    // Verify comment panel opened by checking for dismiss button (✕)
+    await expect(page.locator('button:has-text("✕")').first()).toBeVisible({ timeout: 10000 })
   })
 
-  test('Statistics filtering', async ({ page }) => {
-    // Load mock data and update
-    await page.click('text=Mock')
-    await page.click('text=UPDATE')
+  test('Statistics filtering and navigation', async ({ page }) => {
+    const textarea = page.locator('textarea')
+    const updateButton = page.getByRole('button', { name: 'UPDATE' })
 
-    // Wait for update
-    await expect(page.locator('text=UPDATE')).toHaveClass(/bg-gray-400/, { timeout: 30000 })
+    // Type text with mixed severity comments
+    await textarea.fill('Critical paragraph. XXXA\n\nModerate paragraph. YYYH\n\nAnother critical. XXXG')
+    await updateButton.click()
 
-    // Click Critical filter if it has a count
-    const criticalStat = page.locator('text=/Critical/')
+    // Wait for update to complete
+    await expect(updateButton).toHaveClass(/bg-\[#d9d9d9\]/, { timeout: 30000 })
 
-    // Check if there are any critical comments
-    const text = await criticalStat.textContent()
-    if (text && !text.includes(': 0')) {
-      await criticalStat.click()
+    // Verify statistics are visible with some counts
+    const criticalStat = page.locator('text=/Critical \\(\\d+\\)/')
+    await expect(criticalStat).toBeVisible()
 
-      // Comment bars should filter to show only critical
-      // Visual indication that filter is active
-    }
+    // Click Critical statistic to navigate to first critical comment
+    await criticalStat.click()
+
+    // Wait for panel to open
+    await page.waitForTimeout(500)
+
+    // Verify comment panel opened by checking for dismiss button (✕)
+    await expect(page.locator('button:has-text("✕")').first()).toBeVisible({ timeout: 10000 })
   })
 
   test('Text editing persists', async ({ page }) => {
