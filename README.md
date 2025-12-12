@@ -19,8 +19,9 @@ An interactive React application for editing and reviewing academic papers with 
 
 ## Prerequisites
 
-Before running this project, make sure you have Node.js (v18 or higher) and npm installed:
+Before running this project, make sure you have the following installed:
 
+1. **Node.js (v18 or higher) and npm**:
 ```bash
 # Check if Node.js is installed
 node --version
@@ -28,8 +29,9 @@ node --version
 # Check if npm is installed
 npm --version
 ```
-
 If not installed, download from [nodejs.org](https://nodejs.org/)
+
+2. **Supabase local instance**: This app uses Supabase for authentication. Ensure you have Supabase running locally (see Authentication Setup below)
 
 ## Installation
 
@@ -42,6 +44,33 @@ cd revas-app
 ```bash
 npm install
 ```
+
+## Authentication Setup
+
+This app uses Supabase for authentication. You need a local Supabase instance running.
+
+### Get Supabase Credentials
+
+1. Ensure your local Supabase is running:
+   ```bash
+   supabase status
+   ```
+
+2. Copy the **API URL** and **anon key** from the output
+
+3. Create a `.env` file in the project root (a default one is provided, but you may need to update it):
+   ```bash
+   # The .env file should contain:
+   VITE_SUPABASE_URL=http://127.0.0.1:54321
+   VITE_SUPABASE_ANON_KEY=<your-anon-key-from-supabase-status>
+   ```
+
+   **Note**: A `.env` file with default local Supabase credentials is already included. If your Supabase instance uses different credentials, update the file accordingly.
+
+4. If your Supabase is not running, start it:
+   ```bash
+   supabase start
+   ```
 
 ## Running the Application
 
@@ -170,15 +199,97 @@ The API should return an object with this structure:
 }
 ```
 
+## Account Management
+
+### User Profile & GDPR Compliance
+
+The app implements GDPR-compliant account management features:
+
+**During Signup:**
+- First name and last name collection
+- Consent checkbox for terms/privacy policy
+- Consent timestamp recorded
+
+**Account Settings:**
+- Access via account dropdown (upper right)
+- Edit first name and last name
+- Change password (requires current password verification)
+- Export all your data (JSON format) - GDPR Right to Access
+- Delete account permanently - GDPR Right to Erasure
+
+**Privacy Features:**
+- Last login tracking
+- Profile data stored with Row Level Security (RLS)
+- All user data can be exported or deleted
+
+### Testing Account Features
+
+- **Sign Up**: Create account with first/last name and accept terms
+  - Email must be valid format
+  - Password must be at least 6 characters
+  - Must accept terms checkbox
+  - Successful signup automatically logs you in
+
+- **Login**: Use existing credentials to sign in
+  - Invalid credentials will show an error message
+  - Last login timestamp updated
+
+- **Account Settings**: Click account dropdown → Account Settings
+  - Edit profile information
+  - Change password
+  - Download your data (GDPR export)
+  - Delete account (requires typing DELETE to confirm)
+
+- **Logout**: Click account dropdown → Logout
+  - You'll be returned to the login screen
+
+- **Session Persistence**:
+  - Refresh the page while logged in - you stay logged in
+  - Close and reopen the browser - session persists (within JWT expiry time)
+
+## Database Schema
+
+The app uses Supabase with the following tables:
+
+**`auth.users`** (Supabase managed):
+- User authentication data
+- Email, password hash, created timestamps
+
+**`public.profiles`** (custom table):
+- `id` - UUID, foreign key to auth.users
+- `first_name` - TEXT
+- `last_name` - TEXT
+- `last_sign_in_at` - TIMESTAMP (GDPR compliance)
+- `terms_accepted_at` - TIMESTAMP (GDPR compliance)
+- `created_at` - TIMESTAMP
+- `updated_at` - TIMESTAMP
+
+**Row Level Security (RLS):**
+- Users can only view/update their own profile
+- Auto-creation via database trigger on signup
+
+**Migrations:**
+- Located in `supabase/migrations/`
+- Apply with: `supabase db reset`
+
 ## Project Structure
 
 ```
 revas-app/
 ├── src/
 │   ├── ReviewComponent.jsx  # Main component with all interactions
-│   ├── App.jsx              # Application entry point
+│   ├── AuthContext.jsx      # Authentication state management
+│   ├── AuthComponent.jsx    # Login/signup UI
+│   ├── AccountSettings.jsx  # Account management UI
+│   ├── supabaseClient.js    # Supabase client initialization
+│   ├── commentsClient.js    # API client for comments
+│   ├── App.jsx              # Application entry point with view management
 │   ├── main.jsx             # React DOM rendering
 │   └── index.css            # Tailwind CSS imports
+├── supabase/
+│   └── migrations/          # Database schema migrations
+├── .env                     # Environment variables (not committed)
+├── .env.example             # Environment template
 ├── index.html               # HTML template
 ├── package.json             # Project dependencies
 ├── vite.config.js           # Vite configuration
