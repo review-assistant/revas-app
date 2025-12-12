@@ -1,12 +1,232 @@
 # Testing Guide for Revas
 
-This guide provides comprehensive testing procedures for all features of the Revas application.
+This guide provides comprehensive testing procedures for all features of the Revas application, including both automated and manual testing.
+
+## Quick Start
+
+### Run All Tests
+```bash
+# Unit tests
+npm test
+
+# Unit tests with coverage
+npm run test:coverage
+
+# E2E tests
+npm run test:e2e
+
+# Smoke tests only (deployment verification)
+npm run test:smoke
+```
+
+### Test Categories
+
+1. **Unit Tests** - Fast component and function tests
+2. **Integration Tests** - Tests with real Supabase interactions
+3. **E2E Tests** - Full user journey tests in browser
+4. **Smoke Tests** - Critical deployment verification tests
 
 ## Prerequisites
 
+- Node.js 18+ and npm
 - Local Supabase instance running (`supabase start`)
-- Development server running (`npm run dev`)
-- Browser with DevTools for debugging
+- For E2E tests: Playwright browsers installed (`npx playwright install`)
+
+---
+
+# Automated Testing
+
+## Unit Tests
+
+Unit tests use **Vitest** and **React Testing Library** to test components in isolation.
+
+### Running Unit Tests
+
+```bash
+# Run tests in watch mode
+npm test
+
+# Run tests once
+npm run test:run
+
+# Run with UI
+npm run test:ui
+
+# Run with coverage
+npm run test:coverage
+```
+
+### Writing Unit Tests
+
+Tests are located next to their source files with `.test.jsx` extension:
+```
+src/
+  ├── AuthComponent.jsx
+  ├── AuthComponent.test.jsx
+  ├── AccountSettings.jsx
+  └── AccountSettings.test.jsx
+```
+
+Example:
+```javascript
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import MyComponent from './MyComponent'
+
+describe('MyComponent', () => {
+  it('renders correctly', () => {
+    render(<MyComponent />)
+    expect(screen.getByText('Hello')).toBeInTheDocument()
+  })
+})
+```
+
+### Test Coverage
+
+View coverage report:
+```bash
+npm run test:coverage
+open coverage/index.html
+```
+
+**Coverage Goals:**
+- Critical paths: 80-90%
+- Components: 70-80%
+- Utilities: 90%+
+
+## Integration Tests
+
+Integration tests verify interactions with real Supabase database.
+
+### Prerequisites
+- Local Supabase running: `supabase start`
+- Test database should be isolated from development data
+
+### Running Integration Tests
+
+```bash
+# Run all tests including integration
+npm test
+
+# Skip integration tests (faster for development)
+SKIP_INTEGRATION_TESTS=true npm test
+```
+
+### Integration Test Locations
+
+Integration tests are marked with `.integration.test.jsx`:
+```
+src/
+  ├── AuthContext.jsx
+  └── AuthContext.integration.test.jsx
+```
+
+**Note:** Integration tests are slower and require Supabase to be running.
+
+## E2E Tests
+
+E2E tests use **Playwright** to test complete user workflows in a real browser.
+
+### Setup
+
+Install Playwright browsers (first time only):
+```bash
+npx playwright install
+```
+
+### Running E2E Tests
+
+```bash
+# Run all E2E tests
+npm run test:e2e
+
+# Run with UI (interactive mode)
+npm run test:e2e:ui
+
+# Run in debug mode
+npm run test:e2e:debug
+
+# Run only smoke tests
+npm run test:smoke
+```
+
+### E2E Test Locations
+
+E2E tests are in the `e2e/` directory:
+```
+e2e/
+  ├── auth.spec.js
+  ├── account-settings.spec.js
+  └── review.spec.js
+```
+
+### Writing E2E Tests
+
+Example:
+```javascript
+import { test, expect } from '@playwright/test'
+
+test('user can login', async ({ page }) => {
+  await page.goto('/')
+  await page.fill('input[type="email"]', 'test@example.com')
+  await page.fill('input[type="password"]', 'password123')
+  await page.click('button:has-text("Sign in")')
+
+  await expect(page.locator('text=Edit your review')).toBeVisible()
+})
+```
+
+### Debugging E2E Tests
+
+**View test output:**
+```bash
+npx playwright show-report
+```
+
+**Screenshots and videos:**
+Failed tests automatically save:
+- Screenshots: `test-results/[test-name]/test-failed-1.png`
+- Videos: `test-results/videos/[test-name].webm`
+
+**Debug mode:**
+```bash
+npm run test:e2e:debug
+```
+Opens browser with Playwright Inspector for step-through debugging.
+
+## Smoke Tests for Deployment
+
+**Critical subset of E2E tests** that verify core functionality after deployment.
+
+See [SMOKE-TESTS.md](SMOKE-TESTS.md) for complete guide.
+
+### Quick Reference
+
+```bash
+# Run smoke tests
+npm run test:smoke
+
+# Run against staging
+BASE_URL=https://staging.yourapp.com npm run test:smoke
+
+# Run against production
+BASE_URL=https://production.yourapp.com npm run test:smoke
+```
+
+### Smoke Tests Include:
+- ✅ User signup → login → logout
+- ✅ Edit profile information
+- ✅ Export user data (GDPR)
+- ✅ Delete account
+- ✅ Load review and update comments
+
+**Expected duration:** 3-4 minutes
+
+---
+
+# Manual Testing
+
+The sections below provide detailed manual testing procedures for comprehensive verification.
 
 ## Authentication Testing
 

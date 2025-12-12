@@ -93,6 +93,34 @@ To preview the production build:
 npm run preview
 ```
 
+## Testing
+
+The application includes comprehensive automated tests:
+
+```bash
+# Run unit tests
+npm test
+
+# Run E2E tests
+npm run test:e2e
+
+# Run smoke tests (deployment verification)
+npm run test:smoke
+
+# View coverage
+npm run test:coverage
+```
+
+**Test Documentation:**
+- [TESTING.md](TESTING.md) - Complete testing guide (automated + manual)
+- [SMOKE-TESTS.md](SMOKE-TESTS.md) - Deployment/smoke test guide
+
+**Test Categories:**
+- **Unit Tests** - Component and function tests (Vitest + React Testing Library)
+- **Integration Tests** - Real Supabase interactions
+- **E2E Tests** - Full user journeys (Playwright)
+- **Smoke Tests** - Critical deployment verification (< 5 min)
+
 ## Component Interactions
 
 ### Text Area
