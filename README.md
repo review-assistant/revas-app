@@ -118,86 +118,41 @@ npm run preview
 - Click to process updated text and refresh comments
 - Returns to inactive state after updating
 
-## Mock Comment Generation & Test Markers
+## Comment System
 
-### Comment Generation System
+### Mock Data for Testing
 
-The application includes a mock `getComments()` function that simulates an API endpoint for generating review comments. This function:
+The application includes mock comment generation for testing. Click the **"Mock" button** in the toolbar to populate the editor with sample text and comments.
 
+**Comment Evaluation:**
 - Evaluates paragraphs on four dimensions: **Actionability**, **Helpfulness**, **Grounding**, and **Verifiability**
-- Assigns scores from 1-5 for each dimension (equal probability for each score)
-- Converts scores to severity levels:
-  - **Score 1-2**: Red (critical issues)
-  - **Score 3-4**: Yellow (suggestions for improvement)
-  - **Score 5**: None (hidden - perfect score)
+- Scores range from 1-5 for each dimension
+- Score 1-2 (Red): Critical issues
+- Score 3-4 (Yellow): Suggestions for improvement
+- Score 5: Perfect (comment hidden)
 
-### Monotonic Score Behavior
+**Monotonic Scoring:**
+- Scores can only increase, never decrease
+- Encourages iterative improvement toward perfect scores
+- Once a dimension reaches score 5, it stays there
 
-Comments follow a monotonically non-decreasing score system:
-- When a paragraph is re-evaluated, each label's score becomes the **maximum** of its previous and new scores
-- Once a label reaches score 5, it stays there permanently
-- This encourages iterative improvement toward perfect scores
-- Paragraphs with all score 5 labels appear "clean" with no comment bars
+**Test Markers:**
+For development/testing, you can force specific scores by adding markers to paragraph text:
+- `XXX[A/H/G/V]` → Score 1 (Red)
+- `YYY[A/H/G/V]` → Score 3 (Yellow)
+- `ZZZ[A/H/G/V]` → Score 5 (Hidden)
 
-### Test Markers for Development
+Example: `This is a test. XXXA YYYH` gives Actionability score 1 (red) and Helpfulness score 3 (yellow).
 
-You can force specific scores by adding special markers to paragraph text:
+See [TESTING.md](TESTING.md) for complete testing guide including all test markers.
 
-| Marker | Label | Score | Severity | Effect |
-|--------|-------|-------|----------|--------|
-| `XXXA` | Actionability | 1 | Red | Critical actionability issue |
-| `YYYA` | Actionability | 3 | Yellow | Moderate actionability concern |
-| `ZZZA` | Actionability | 5 | None | Perfect actionability (hidden) |
-| `XXXH` | Helpfulness | 1 | Red | Critical helpfulness issue |
-| `YYYH` | Helpfulness | 3 | Yellow | Moderate helpfulness concern |
-| `ZZZH` | Helpfulness | 5 | None | Perfect helpfulness (hidden) |
-| `XXXG` | Grounding | 1 | Red | Critical grounding issue |
-| `YYYG` | Grounding | 3 | Yellow | Moderate grounding concern |
-| `ZZZG` | Grounding | 5 | None | Perfect grounding (hidden) |
-| `XXXV` | Verifiability | 1 | Red | Critical verifiability issue |
-| `YYYV` | Verifiability | 3 | Yellow | Moderate verifiability concern |
-| `ZZZV` | Verifiability | 5 | None | Perfect verifiability (hidden) |
+### Integrating a Real API
 
-**Important**: Test markers **override monotonic behavior**. A marker will force its score even if the previous score was higher.
-
-**Example Usage**:
-```
-This paragraph has poor actionability and helpfulness. XXXA XXXH
-→ Shows red comment bar with Actionability and Helpfulness both at score 1
-
-This one is moderate across all dimensions. YYYA YYYH YYYG YYYV
-→ Shows yellow comment bar with all four labels at score 3
-
-Perfect paragraph! ZZZA ZZZH ZZZG ZZZV
-→ No comment bar (all scores are 5, hidden)
-```
-
-### Replacing the Mock Function
-
-To integrate with a real API endpoint, simply replace the `getComments()` function in `src/ReviewComponent.jsx`:
-
-```javascript
-const getComments = async (paragraphs) => {
-  const response = await fetch('YOUR_API_ENDPOINT', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ paragraphs })
-  });
-  return await response.json();
-};
-```
-
-The API should return an object with this structure:
-```javascript
-{
-  paragraphId: {
-    Actionability: { score: 1-5, text: "feedback text" },
-    Helpfulness: { score: 1-5, text: "feedback text" },
-    Grounding: { score: 1-5, text: "feedback text" },
-    Verifiability: { score: 1-5, text: "feedback text" }
-  }
-}
-```
+Comment generation is handled by `src/commentsClient.js`. See that file for:
+- API endpoint configuration
+- Expected API request/response formats
+- Batch processing and retry logic
+- Mode switching (mock vs. backend)
 
 ## Account Management
 
@@ -222,30 +177,7 @@ The app implements GDPR-compliant account management features:
 - Profile data stored with Row Level Security (RLS)
 - All user data can be exported or deleted
 
-### Testing Account Features
-
-- **Sign Up**: Create account with first/last name and accept terms
-  - Email must be valid format
-  - Password must be at least 6 characters
-  - Must accept terms checkbox
-  - Successful signup automatically logs you in
-
-- **Login**: Use existing credentials to sign in
-  - Invalid credentials will show an error message
-  - Last login timestamp updated
-
-- **Account Settings**: Click account dropdown → Account Settings
-  - Edit profile information
-  - Change password
-  - Download your data (GDPR export)
-  - Delete account (requires typing DELETE to confirm)
-
-- **Logout**: Click account dropdown → Logout
-  - You'll be returned to the login screen
-
-- **Session Persistence**:
-  - Refresh the page while logged in - you stay logged in
-  - Close and reopen the browser - session persists (within JWT expiry time)
+For detailed testing procedures, see [TESTING.md](TESTING.md).
 
 ## Database Schema
 
@@ -296,13 +228,6 @@ revas-app/
 ├── tailwind.config.js       # Tailwind configuration
 └── postcss.config.js        # PostCSS configuration
 ```
-
-## Future Enhancements
-
-- API integration for real-time comment generation
-- Support for multiple review types
-- Export to various formats
-- Collaborative editing features
 
 ## Some other things Revas might mean:
 -  Rescue, Evacuation, Ventilation, Attack, and Salvage (firefighting tactical priorities)

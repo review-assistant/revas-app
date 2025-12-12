@@ -14,6 +14,102 @@
  */
 
 // ============================================================================
+// API INTEGRATION GUIDE
+// ============================================================================
+/**
+ * API ENDPOINT CONFIGURATION
+ *
+ * To integrate with a different API backend:
+ * 1. Update CONFIG.API_BASE_URL to your API endpoint
+ * 2. Set CONFIG.MODE to 'backend' (or 'mock' for testing)
+ * 3. Ensure your API implements the expected request/response format below
+ *
+ * REQUEST FORMAT:
+ * POST /get_comments/v1/jobs
+ * Content-Type: application/json
+ *
+ * Request body:
+ * {
+ *   "points": [
+ *     "First paragraph text to analyze...",
+ *     "Second paragraph text to analyze...",
+ *     ...
+ *   ]
+ * }
+ *
+ * RESPONSE FORMAT (Job Creation):
+ * {
+ *   "job_id": "550e8400-e29b-41d4-a716-446655440000",
+ *   "status": "queued"  // or "running", "completed", "failed"
+ * }
+ *
+ * POLLING FORMAT:
+ * GET /get_comments/v1/jobs/{job_id}
+ *
+ * Response (while processing):
+ * {
+ *   "job_id": "550e8400-e29b-41d4-a716-446655440000",
+ *   "status": "running"  // or "queued"
+ * }
+ *
+ * Response (when complete):
+ * {
+ *   "job_id": "550e8400-e29b-41d4-a716-446655440000",
+ *   "status": "completed",
+ *   "response": {
+ *     "results": [
+ *       {
+ *         "index": 0,  // Index in the original request array
+ *         "text": "Original paragraph text...",
+ *         "aspects": {
+ *           "actionability": {
+ *             "score": "3",  // String: "1" to "5"
+ *             "rationale": "The comment could be more specific..."
+ *           },
+ *           "grounding_specificity": {
+ *             "score": "4",
+ *             "rationale": "Well grounded in the paper content..."
+ *           },
+ *           "verifiability": {
+ *             "score": "2",  // or "X" for N/A
+ *             "rationale": "Needs citation for this claim..."
+ *           },
+ *           "helpfulness": {
+ *             "score": "5",
+ *             "rationale": "Very helpful feedback..."
+ *           }
+ *         }
+ *       },
+ *       // ... more results
+ *     ]
+ *   }
+ * }
+ *
+ * Response (on failure):
+ * {
+ *   "job_id": "550e8400-e29b-41d4-a716-446655440000",
+ *   "status": "failed",
+ *   "error": "Error message describing what went wrong"
+ * }
+ *
+ * SCORE INTERPRETATION:
+ * - Score 1-2: Critical issues (displayed with red bar)
+ * - Score 3-4: Suggestions for improvement (displayed with yellow bar)
+ * - Score 5: Perfect, no issues (comment hidden in UI)
+ * - Score "X": Not applicable (treated as 5, comment hidden)
+ *
+ * ASPECT NAME MAPPING:
+ * API aspect name         -> UI label
+ * - actionability         -> Actionability
+ * - grounding_specificity -> Grounding
+ * - verifiability         -> Verifiability
+ * - helpfulness           -> Helpfulness
+ *
+ * The transformApiResponse() function handles converting the API format
+ * to the format expected by ReviewComponent.
+ */
+
+// ============================================================================
 // CONFIGURATION
 // ============================================================================
 // TODO: Move to separate configuration file in future versions
