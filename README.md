@@ -101,6 +101,9 @@ The application includes comprehensive automated tests:
 # Run unit tests
 npm test
 
+# Run integration tests (backend API format validation)
+npm run test:integration
+
 # Run E2E tests
 npm run test:e2e
 
@@ -117,9 +120,18 @@ npm run test:coverage
 
 **Test Categories:**
 - **Unit Tests** - Component and function tests (Vitest + React Testing Library)
-- **Integration Tests** - Real Supabase interactions
+- **Integration Tests** - Backend API connectivity and response format validation
 - **E2E Tests** - Full user journeys (Playwright)
 - **Smoke Tests** - Critical deployment verification (< 5 min)
+
+**Integration Tests:**
+Backend API tests verify the comments API is accessible and returns correctly formatted responses. These tests:
+- Check API connectivity and availability
+- Validate response structure (all 4 dimensions present)
+- Verify each dimension has `score` (1-5) and `text` fields
+- Test multi-paragraph handling
+- Confirm test markers (XXXA, YYYH, etc.) work correctly
+- Skip automatically if backend is unavailable (set `SKIP_INTEGRATION_TESTS=true`)
 
 ## Component Interactions
 
