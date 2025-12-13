@@ -3,7 +3,10 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-const BACKEND_URL = Deno.env.get('COMMENT_SERVICE_URL')!
+// Try to get from environment variable, fallback to hardcoded value for local development
+const BACKEND_URL = Deno.env.get('COMMENT_SERVICE_URL') || 'http://10.127.105.10:8888'
+console.log('[Startup] Using BACKEND_URL:', BACKEND_URL)
+
 const JOBS_ENDPOINT = `${BACKEND_URL}/get_comments/v1/jobs`
 
 serve(async (req) => {
