@@ -88,10 +88,30 @@ The application will be available at `http://localhost:5173`
 
 ## Building for Production
 
+There is not much different about a production run than a local dev run.
+You need to have a .env file in this directory that contains the public address of the host machine.
+And you have to add an encryption key to a migration.
+For our test host, .env looks like this:
+```
+# VITE_SUPABASE_URL=http://127.0.0.1:54321 # this is in the local .env file
+VITE_SUPABASE_URL=http://10.127.105.10:54321 # the production host
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+
+# Encryption key for review content (change in production)
+# Note: because supabase wont let us set postgres config while in local mode without being superuser,
+# an encryption key had to be hard-wired into the code as a default fallback key. So you have
+# to remember to change the key in this file AND in the migration.
+# To change the encryption key for production:
+#  1. Edit .env: Update ENCRYPTION_KEY=your-new-production-key
+#  2. Edit supabase/migrations/20251214000005_fix_encryption_key.sql: Update line 21 and 43 to match
+#  3. Run: npx supabase db reset
+ENCRYPTION_KEY=local-dev-key-change-in-production-12345
+```
 To create a production build:
 ```bash
 npm run build
 ```
+This will bake the VITE_SUPABASE_URL into the javascript UI -- if you forget to change from 127.* all your UI backend calls will fail.
 
 To preview the production build:
 ```bash
