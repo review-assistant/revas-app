@@ -3,10 +3,22 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-// Try to get from environment variable, fallback to hardcoded value for local development
-const BACKEND_URL = Deno.env.get('COMMENT_SERVICE_URL') || 'http://10.127.105.10:8888'
-console.log('[Startup] Using BACKEND_URL:', BACKEND_URL)
+// ============================================================================
+// CONFIGURATION: Backend Comment Service URL
+// ============================================================================
+// To change the backend URL, update the BACKEND_URL constant below:
+//
+// 1. Edit this file (supabase/functions/get-comments/index.ts)
+// 2. Update the URL to point to your comment service
+// 3. Restart Supabase: npx supabase stop && npx supabase start
+//
+// Example URLs:
+// - Local network: 'http://10.127.105.10:8888'
+// - Localhost: 'http://localhost:8888'
+// - Remote server: 'http://your-server.com:8888'
+// ============================================================================
 
+const BACKEND_URL = 'http://10.127.105.10:8888'
 const JOBS_ENDPOINT = `${BACKEND_URL}/get_comments/v1/jobs`
 
 serve(async (req) => {

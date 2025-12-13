@@ -208,11 +208,18 @@ Frontend → Supabase Edge Function → Comment Service
 - Requests require authentication (Supabase JWT token)
 - Edge Function validates and forwards requests
 
+**Changing the Backend URL:**
+
+To point to a different comment service backend:
+
+1. Edit `supabase/functions/get-comments/index.ts`
+2. Update the `BACKEND_URL` constant (around line 21)
+3. Restart Supabase: `npx supabase stop && npx supabase start`
+
 **Local Development:**
-1. Ensure Supabase is running: `supabase status`
+1. Ensure Supabase is running: `npx supabase status`
 2. Edge Function runs automatically with local Supabase
-3. Comment service URL configured in `supabase/.env`
-4. See [TESTING.md](TESTING.md#edge-function-testing) for manual testing procedures
+3. See [TESTING.md](TESTING.md#edge-function-testing) for manual testing procedures
 
 ## Account Management
 

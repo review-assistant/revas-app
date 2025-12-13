@@ -953,23 +953,27 @@ The Edge Function acts as a secure proxy between the frontend and the comment se
 
 #### Test 10: Configuration Verification
 
-**Purpose:** Verify Edge Function environment and secrets
+**Purpose:** Verify Edge Function backend URL configuration
 
-1. Check `.env` exists:
+1. Check the configured backend URL:
    ```bash
-   cat supabase/.env
+   grep "const BACKEND_URL" supabase/functions/get-comments/index.ts
    ```
-2. **Expected Content:**
+2. **Expected Output:**
    ```
-   COMMENT_SERVICE_URL=http://10.127.105.10:8888
+   const BACKEND_URL = 'http://10.127.105.10:8888'
    ```
 
-3. Verify Edge Function can read the secret (check logs when function starts)
-4. Test with wrong backend URL:
-   - Temporarily change URL in `supabase/.env`
+3. **To change the backend URL:**
+   - Edit `supabase/functions/get-comments/index.ts`
+   - Update the `BACKEND_URL` constant (around line 21)
    - Restart Supabase: `npx supabase stop && npx supabase start`
+
+4. Test with different backend URL:
+   - Temporarily change URL in the Edge Function code
+   - Restart Supabase
    - Try to generate comments
-   - **Expected:** Connection error to backend
+   - **Expected:** Connects to the new backend URL
 
 ### Edge Function Test Checklist
 
