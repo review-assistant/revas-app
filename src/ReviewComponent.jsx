@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { getComments } from './commentsClient.js';
+import { supabase } from './supabaseClient.js';
+import PaperInfoDialog from './components/PaperInfoDialog.jsx';
 
 // Now using commentsClient for API calls
 // Toggle between mock and backend by changing MODE in commentsClient.js:
@@ -48,6 +50,17 @@ export default function ReviewComponent() {
 
   // Track dismissed comments by paragraph ID and label
   const [dismissedComments, setDismissedComments] = useState({}); // {paragraphId: Set(['Actionability', ...])}
+
+  // Persistence state
+  const [reviewId, setReviewId] = useState(null);
+  const [paperId, setPaperId] = useState(null);
+  const [paperTitle, setPaperTitle] = useState('');
+  const [paperConference, setPaperConference] = useState('');
+  const [showPaperDialog, setShowPaperDialog] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const [savingStatus, setSavingStatus] = useState('saved'); // 'saved' | 'saving' | 'error'
+  const [isLocked, setIsLocked] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const textareaRef = useRef(null);
   const hiddenTextRef = useRef(null);
@@ -439,8 +452,226 @@ export default function ReviewComponent() {
     }
   }, [isDragging, reviewTextWidth]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Initialize review on component mount
+  useEffect(() => {
+    if (!isInitialized) {
+      initializeReview();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initialize or load review
+  const initializeReview = async () => {
+    try {
+      // Check if user is logged in
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('No active session - review will not be persisted');
+        setIsInitialized(true);
+        return;
+      }
+
+      // Show paper info dialog on first use
+      setShowPaperDialog(true);
+    } catch (error) {
+      console.error('Error initializing review:', error);
+      setIsInitialized(true);
+    }
+  };
+
+  // Handle paper info submission
+  const handlePaperInfoSubmit = async ({ title, conference }) => {
+    setShowPaperDialog(false);
+
+    try {
+      setPaperTitle(title || '');
+      setPaperConference(conference || '');
+
+      // Get or create paper
+      const { data: newPaperId, error: paperError } = await supabase.rpc('get_or_create_paper', {
+        p_title: title,
+        p_conference: conference
+      });
+
+      if (paperError) throw paperError;
+
+      setPaperId(newPaperId);
+
+      // Get or create review for this paper
+      const { data: newReviewId, error: reviewError } = await supabase.rpc('get_or_create_review', {
+        p_paper_id: newPaperId
+      });
+
+      if (reviewError) throw reviewError;
+
+      setReviewId(newReviewId);
+
+      // Load existing review data if it exists
+      await loadReviewData(newReviewId);
+
+      setIsInitialized(true);
+    } catch (error) {
+      console.error('Error creating/loading review:', error);
+      setIsInitialized(true);
+    }
+  };
+
+  // Load review data from database
+  const loadReviewData = async (loadReviewId) => {
+    try {
+      // Fetch review with items, scores, and interactions
+      const { data: review, error: reviewError } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          review_items (
+            *,
+            review_item_scores (*),
+            review_item_interactions (*)
+          )
+        `)
+        .eq('id', loadReviewId)
+        .single();
+
+      if (reviewError) throw reviewError;
+
+      if (!review || !review.review_items || review.review_items.length === 0) {
+        // No existing review content
+        return;
+      }
+
+      // Check if review is locked
+      setIsLocked(review.is_locked);
+
+      // Reconstruct paragraphs with IDs from review_items
+      // Group by paragraph_id and get latest version
+      const paragraphMap = new Map();
+
+      review.review_items.forEach(item => {
+        if (!item.is_deleted) {
+          const existing = paragraphMap.get(item.paragraph_id);
+          if (!existing || item.version > existing.version) {
+            paragraphMap.set(item.paragraph_id, item);
+          }
+        }
+      });
+
+      // Convert to sorted array by paragraph_id
+      const sortedParagraphs = Array.from(paragraphMap.values())
+        .sort((a, b) => a.paragraph_id - b.paragraph_id);
+
+      if (sortedParagraphs.length > 0) {
+        // Reconstruct review text from paragraphs
+        const paragraphTexts = sortedParagraphs.map(item => item.content_encrypted);
+
+        // Note: content is encrypted in database, will be decrypted by RPC function
+        // For now, we'll just set empty text and let user start fresh
+        // TODO: Implement decryption on load
+        // setReviewText(paragraphTexts.join('\n\n'));
+
+        // Set up paragraph IDs
+        const paragraphsWithIds = sortedParagraphs.map(item => ({
+          id: item.paragraph_id,
+          originalContent: '', // Will be set on first save
+          currentContent: '' // Will be filled by user
+        }));
+
+        setParagraphsWithIds(paragraphsWithIds);
+        nextParagraphIdRef.current = Math.max(...sortedParagraphs.map(p => p.paragraph_id)) + 1;
+      }
+
+      console.log('Review data loaded successfully');
+    } catch (error) {
+      console.error('Error loading review data:', error);
+    }
+  };
+
+  // Save review draft to database
+  const saveReviewDraft = async () => {
+    if (!reviewId || isLocked) {
+      console.log('Skipping save: no reviewId or review is locked');
+      return;
+    }
+
+    try {
+      setSavingStatus('saving');
+
+      // Prepare paragraphs for saving
+      const paragraphs = paragraphsWithIds.map(p => ({
+        paragraph_id: p.id,
+        content: p.currentContent,
+        is_deleted: false
+      }));
+
+      // Call save_review_content RPC function
+      const { error } = await supabase.rpc('save_review_content', {
+        p_review_id: reviewId,
+        p_content: reviewText,
+        p_paragraphs: paragraphs
+      });
+
+      if (error) throw error;
+
+      setLastSavedAt(new Date());
+      setSavingStatus('saved');
+      console.log('Review draft saved successfully');
+    } catch (error) {
+      console.error('Error saving review draft:', error);
+      setSavingStatus('error');
+    }
+  };
+
+  // Save scores after UPDATE
+  const saveScores = async (commentData) => {
+    if (!reviewId || isLocked) {
+      console.log('Skipping score save: no reviewId or review is locked');
+      return;
+    }
+
+    try {
+      // Transform comment data to scores format
+      const scores = [];
+
+      Object.keys(commentData).forEach(paragraphIdStr => {
+        const paragraphId = parseInt(paragraphIdStr);
+        const data = commentData[paragraphIdStr];
+
+        ['Actionability', 'Helpfulness', 'Grounding', 'Verifiability'].forEach(dimension => {
+          if (data[dimension]) {
+            scores.push({
+              paragraph_id: paragraphId,
+              dimension: dimension,
+              score: data[dimension].score,
+              previous_score: null, // TODO: Track previous scores
+              score_change: null,
+              comment: data[dimension].text
+            });
+          }
+        });
+      });
+
+      if (scores.length === 0) {
+        return; // No scores to save
+      }
+
+      // Call save_review_scores RPC function
+      const { error } = await supabase.rpc('save_review_scores', {
+        p_review_id: reviewId,
+        p_scores: scores
+      });
+
+      if (error) throw error;
+
+      console.log('Scores saved successfully');
+    } catch (error) {
+      console.error('Error saving scores:', error);
+    }
+  };
+
   const handleUpdate = async () => {
     if (!isModified) return;
+
+    // Save draft before getting comments
+    await saveReviewDraft();
 
     // Create unique ID for this request
     const requestId = ++currentRequestIdRef.current;
@@ -569,6 +800,9 @@ export default function ReviewComponent() {
       Object.assign(updatedComments, newComments);
 
       setCommentsByParagraphId(updatedComments);
+
+      // Save scores to database
+      await saveScores(commentResults);
 
       // Update paragraph originalContent to match currentContent
       const updatedParagraphs = paragraphsWithIds.map(p => ({
@@ -769,6 +1003,17 @@ export default function ReviewComponent() {
 
   return (
     <div className="bg-white box-border flex flex-col gap-[21px] items-center justify-center px-[22px] py-[15px] h-screen w-full">
+      {/* Paper Info Dialog */}
+      {showPaperDialog && (
+        <PaperInfoDialog
+          onSubmit={handlePaperInfoSubmit}
+          onCancel={() => {
+            setShowPaperDialog(false);
+            setIsInitialized(true);
+          }}
+        />
+      )}
+
       {/* Label stats or Progress Bar - bottom left of UPDATE button */}
       {isLoading ? (
         /* Progress bar during update */
