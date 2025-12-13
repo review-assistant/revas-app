@@ -40,7 +40,7 @@ If not installed, download from [nodejs.org](https://nodejs.org/)
 cd revas-app
 ```
 
-2. Install dependencies:
+2. Install dependencies (this includes a local installation of supabase):
 ```bash
 npm install
 ```
@@ -48,15 +48,20 @@ npm install
 ## Authentication Setup
 
 This app uses Supabase for authentication. You need a local Supabase instance running.
+Because Supabase uses docker, you need permission to connect to the docker socket
+(don't use sudo!).
+
+Supabase is not currently installable as a global executable. The workaround is to prefix
+its commands with `npx`.
 
 ### Get Supabase Credentials
 
 1. Ensure your local Supabase is running:
    ```bash
-   supabase status
+   npx supabase status
    ```
 
-2. Copy the **API URL** and **anon key** from the output
+2. Copy the **API URL** and Publishable Authentication key (aka the **anon key**) from the output.
 
 3. Create a `.env` file in the project root (a default one is provided, but you may need to update it):
    ```bash
@@ -67,9 +72,9 @@ This app uses Supabase for authentication. You need a local Supabase instance ru
 
    **Note**: A `.env` file with default local Supabase credentials is already included. If your Supabase instance uses different credentials, update the file accordingly.
 
-4. If your Supabase is not running, start it:
+4. If your Supabase is not running, start it. The first time you do this, docker images will be downloaded and installed:
    ```bash
-   supabase start
+   npx supabase start
    ```
 
 ## Running the Application
