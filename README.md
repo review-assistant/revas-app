@@ -211,7 +211,7 @@ Frontend → Supabase Edge Function → Comment Service
 **Local Development:**
 1. Ensure Supabase is running: `supabase status`
 2. Edge Function runs automatically with local Supabase
-3. Comment service URL configured in `supabase/.env.local`
+3. Comment service URL configured in `supabase/.env`
 4. See [TESTING.md](TESTING.md#edge-function-testing) for manual testing procedures
 
 ## Account Management

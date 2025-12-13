@@ -955,9 +955,9 @@ The Edge Function acts as a secure proxy between the frontend and the comment se
 
 **Purpose:** Verify Edge Function environment and secrets
 
-1. Check `.env.local` exists:
+1. Check `.env` exists:
    ```bash
-   cat supabase/.env.local
+   cat supabase/.env
    ```
 2. **Expected Content:**
    ```
@@ -966,8 +966,8 @@ The Edge Function acts as a secure proxy between the frontend and the comment se
 
 3. Verify Edge Function can read the secret (check logs when function starts)
 4. Test with wrong backend URL:
-   - Temporarily change URL in `.env.local`
-   - Restart Supabase: `supabase stop && supabase start`
+   - Temporarily change URL in `supabase/.env`
+   - Restart Supabase: `npx supabase stop && npx supabase start`
    - Try to generate comments
    - **Expected:** Connection error to backend
 
