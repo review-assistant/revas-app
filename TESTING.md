@@ -803,10 +803,17 @@ The Edge Function acts as a secure proxy between the frontend and the comment se
 2. Open browser DevTools → Console
 3. Get auth token:
    ```javascript
+   // Option 1: Using window.supabase (available in dev mode after page refresh)
    const { data: { session } } = await window.supabase.auth.getSession()
    console.log(session.access_token)
+
+   // Option 2: If window.supabase is undefined, get token from localStorage
+   const supabaseSession = JSON.parse(localStorage.getItem('sb-127.0.0.1:54321-auth-token'))
+   console.log(supabaseSession?.access_token)
    ```
 4. Copy the token
+
+   **Note:** If `window.supabase` is undefined, refresh the page after logging in.
 5. Test job creation:
    ```bash
    curl -X POST http://127.0.0.1:54321/functions/v1/get-comments \
