@@ -751,6 +751,265 @@ After benchmarking, consider these optimizations:
 - [ ] Add connection pooling for concurrent requests
 - [ ] Implement progressive loading (show results as they arrive)
 
+## Edge Function Testing
+
+The Edge Function acts as a secure proxy between the frontend and the comment service backend.
+
+### Prerequisites
+- Local Supabase running: `supabase status`
+- Backend comment service accessible at configured URL
+- Test user account for authentication
+
+### Manual Testing Procedures
+
+#### Test 1: Edge Function Accessibility
+
+**Purpose:** Verify Edge Function is running and accessible
+
+1. Check Supabase status:
+   ```bash
+   supabase status
+   ```
+2. **Expected Output:**
+   - Edge Runtime shows as "UP"
+   - Functions URL: `http://127.0.0.1:54321/functions/v1`
+
+3. Check if function is deployed locally:
+   ```bash
+   supabase functions list
+   ```
+4. **Expected Output:** Shows `get-comments` function
+
+#### Test 2: Authentication Requirement
+
+**Purpose:** Verify Edge Function requires valid authentication token
+
+1. Attempt to call Edge Function without auth token:
+   ```bash
+   curl -X POST http://127.0.0.1:54321/functions/v1/get-comments \
+     -H "Content-Type: application/json" \
+     -d '{"points": ["Test paragraph"]}'
+   ```
+
+2. **Expected Result:**
+   - Status: 401 Unauthorized
+   - Response: `{"error": "Missing authorization header"}`
+
+#### Test 3: Job Creation Through Proxy
+
+**Purpose:** Verify Edge Function successfully proxies job creation requests
+
+1. Login to the app to get a valid session
+2. Open browser DevTools → Console
+3. Get auth token:
+   ```javascript
+   const { data: { session } } = await window.supabase.auth.getSession()
+   console.log(session.access_token)
+   ```
+4. Copy the token
+5. Test job creation:
+   ```bash
+   curl -X POST http://127.0.0.1:54321/functions/v1/get-comments \
+     -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+     -H "Content-Type: application/json" \
+     -d '{"points": ["This is a test review comment for testing the Edge Function proxy."]}'
+   ```
+
+6. **Expected Result:**
+   - Status: 200 OK
+   - Response contains `job_id` and `status` fields:
+     ```json
+     {
+       "job_id": "550e8400-e29b-41d4-a716-446655440000",
+       "status": "queued"
+     }
+     ```
+
+#### Test 4: Job Polling Through Proxy
+
+**Purpose:** Verify Edge Function successfully proxies job status requests
+
+1. Using the job_id from Test 3, poll for results:
+   ```bash
+   curl -X GET http://127.0.0.1:54321/functions/v1/get-comments/YOUR_JOB_ID_HERE \
+     -H "Authorization: Bearer YOUR_TOKEN_HERE"
+   ```
+
+2. **Expected Result:**
+   - While processing: `{"job_id": "...", "status": "running"}`
+   - When complete:
+     ```json
+     {
+       "job_id": "...",
+       "status": "completed",
+       "response": {
+         "results": [{
+           "index": 0,
+           "text": "...",
+           "aspects": {
+             "actionability": {"score": "3", "rationale": "..."},
+             "grounding_specificity": {"score": "4", "rationale": "..."},
+             "verifiability": {"score": "5", "rationale": "..."},
+             "helpfulness": {"score": "3", "rationale": "..."}
+           }
+         }]
+       }
+     }
+     ```
+
+#### Test 5: End-to-End Through UI
+
+**Purpose:** Verify complete flow from UI through Edge Function to backend
+
+1. Start the app: `npm run dev`
+2. Login with test account
+3. Open browser DevTools → Network tab
+4. Filter by "get-comments"
+5. Enter review text in textarea
+6. Click UPDATE button
+7. **Expected Results:**
+   - Network tab shows requests to: `http://127.0.0.1:54321/functions/v1/get-comments`
+   - NOT directly to: `http://10.127.105.10:8888` (old direct URL)
+   - Comments generate successfully
+   - Comment bars appear
+   - Statistics update
+
+#### Test 6: Error Handling
+
+**Purpose:** Verify Edge Function handles backend errors gracefully
+
+**Test 6a: Backend Unavailable**
+1. Stop the backend comment service (if you have control)
+2. Try to generate comments through UI
+3. **Expected Result:**
+   - Edge Function returns backend error
+   - UI shows error message (connection failed or similar)
+   - No crashes or infinite loading
+
+**Test 6b: Malformed Request**
+1. Send invalid request format:
+   ```bash
+   curl -X POST http://127.0.0.1:54321/functions/v1/get-comments \
+     -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+     -H "Content-Type: application/json" \
+     -d '{"invalid": "format"}'
+   ```
+
+2. **Expected Result:**
+   - Backend returns 400 or appropriate error
+   - Edge Function forwards error to client
+   - Error is properly formatted JSON
+
+#### Test 7: Token Expiration
+
+**Purpose:** Verify handling of expired tokens
+
+1. Login to app
+2. Get auth token
+3. Wait for token to expire (default: 1 hour) OR manually create expired token
+4. Try to call Edge Function with expired token
+5. **Expected Result:**
+   - 401 Unauthorized response
+   - UI prompts for re-login (if integrated)
+
+#### Test 8: Multiple Concurrent Requests
+
+**Purpose:** Verify Edge Function handles concurrent requests
+
+1. Open multiple browser tabs with the app
+2. Login in each tab (same or different users)
+3. Click UPDATE in multiple tabs simultaneously
+4. **Expected Results:**
+   - All requests process successfully
+   - No cross-contamination of responses
+   - Each tab gets correct results for its request
+   - No server errors
+
+#### Test 9: Edge Function Logs
+
+**Purpose:** Verify Edge Function logging for debugging
+
+1. View Edge Function logs:
+   ```bash
+   # Logs appear in terminal where supabase was started
+   # Or check Supabase logs
+   supabase logs
+   ```
+
+2. Generate some requests through the UI
+3. **Expected Log Output:**
+   - Incoming requests logged (method, path)
+   - Authentication attempts
+   - Backend forwarding (URL, method)
+   - Responses (status codes)
+   - Any errors with stack traces
+
+#### Test 10: Configuration Verification
+
+**Purpose:** Verify Edge Function environment and secrets
+
+1. Check `.env.local` exists:
+   ```bash
+   cat supabase/.env.local
+   ```
+2. **Expected Content:**
+   ```
+   COMMENT_SERVICE_URL=http://10.127.105.10:8888
+   ```
+
+3. Verify Edge Function can read the secret (check logs when function starts)
+4. Test with wrong backend URL:
+   - Temporarily change URL in `.env.local`
+   - Restart Supabase: `supabase stop && supabase start`
+   - Try to generate comments
+   - **Expected:** Connection error to backend
+
+### Edge Function Test Checklist
+
+Quick verification checklist:
+
+- [ ] Edge Function shows as running in `supabase status`
+- [ ] Requests without auth token return 401
+- [ ] Requests with valid token succeed
+- [ ] Job creation returns job_id
+- [ ] Job polling returns status and eventual results
+- [ ] UI requests go to Edge Function URL (check Network tab)
+- [ ] Backend errors are forwarded correctly
+- [ ] Concurrent requests work without interference
+- [ ] Edge Function logs show request flow
+- [ ] Backend URL secret is properly configured
+
+### Troubleshooting Edge Function Issues
+
+**Problem:** Edge Function not found (404)
+- **Solution:**
+  - Check function exists: `ls supabase/functions/get-comments/`
+  - Restart Supabase: `supabase stop && supabase start`
+
+**Problem:** 500 Internal Server Error
+- **Solution:**
+  - Check Edge Function logs for errors
+  - Verify backend URL in `.env.local`
+  - Test backend accessibility: `curl http://10.127.105.10:8888/get_comments/v1/jobs`
+
+**Problem:** Authentication always fails
+- **Solution:**
+  - Verify token is being sent in Authorization header
+  - Check token format: `Bearer <token>`
+  - Confirm user is logged in and session is active
+
+**Problem:** Requests timeout
+- **Solution:**
+  - Check backend service is responding
+  - Increase timeout in Edge Function code
+  - Verify network connectivity to backend
+
+**Problem:** CORS errors
+- **Solution:**
+  - Verify CORS headers in Edge Function
+  - Check browser DevTools for specific CORS error
+  - Ensure Edge Function returns proper CORS headers
+
 ## Automated Testing (Future)
 
 This guide currently covers manual and benchmark testing. Consider adding:

@@ -194,6 +194,26 @@ Comment generation is handled by `src/commentsClient.js`. See that file for:
 - Expected API request/response formats
 - Batch processing and retry logic
 
+### Backend Proxy Architecture
+
+The app uses a Supabase Edge Function as a secure proxy to the comment service:
+
+**Architecture:**
+```
+Frontend → Supabase Edge Function → Comment Service
+```
+
+**Security:**
+- Comment service URL is hidden from frontend (stored as Edge Function secret)
+- Requests require authentication (Supabase JWT token)
+- Edge Function validates and forwards requests
+
+**Local Development:**
+1. Ensure Supabase is running: `supabase status`
+2. Edge Function runs automatically with local Supabase
+3. Comment service URL configured in `supabase/.env.local`
+4. See [TESTING.md](TESTING.md#edge-function-testing) for manual testing procedures
+
 ## Account Management
 
 ### User Profile & GDPR Compliance

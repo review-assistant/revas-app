@@ -120,7 +120,8 @@ const CONFIG = {
   MODE: 'backend',             // 'mock' or 'backend'
 
   // API endpoint configuration
-  API_BASE_URL: 'http://10.127.105.10:8888',
+  // Points to Supabase Edge Function which proxies to backend
+  API_BASE_URL: import.meta.env.VITE_SUPABASE_URL + '/functions/v1/get-comments',
 
   // Batch processing configuration
   // Server maximum is 128, using batch size of 1 for fine-grained progress updates
@@ -289,16 +290,22 @@ async function getCommentsMock(paragraphs) {
  * @returns {Promise<{job_id: string, status: string}>}
  */
 async function createCommentsJob(points) {
-  const url = `${CONFIG.API_BASE_URL}/get_comments/v1/jobs`;
+  // Edge function handles the /get_comments/v1/jobs path internally
+  const url = CONFIG.API_BASE_URL;
 
   logDebug(`POST ${url}`, { pointsCount: points.length });
   logDebug('Request body:', { points });
+
+  // Get auth token from Supabase session
+  const { supabase } = await import('./supabaseClient.js');
+  const { data: { session } } = await supabase.auth.getSession();
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'accept': 'application/json',
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token}`
     },
     body: JSON.stringify({ points })
   });
@@ -323,14 +330,20 @@ async function createCommentsJob(points) {
  * @returns {Promise<Object>} - The job result
  */
 async function pollJobResult(jobId) {
-  const url = `${CONFIG.API_BASE_URL}/get_comments/v1/jobs/${jobId}`;
+  // Edge function will detect job ID in path
+  const url = `${CONFIG.API_BASE_URL}/${jobId}`;
 
   logDebug(`GET ${url}`);
+
+  // Get auth token from Supabase session
+  const { supabase } = await import('./supabaseClient.js');
+  const { data: { session } } = await supabase.auth.getSession();
 
   const response = await fetch(url, {
     method: 'GET',
     headers: {
-      'accept': 'application/json'
+      'accept': 'application/json',
+      'Authorization': `Bearer ${session?.access_token}`
     }
   });
 
