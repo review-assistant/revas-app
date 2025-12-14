@@ -31,7 +31,8 @@ describe('AuthComponent', () => {
         providerProps: { signIn: mockSignIn }
       })
 
-      await user.type(screen.getByLabelText('Email address'), 'invalid-email')
+      // Use email with @ but missing TLD (passes HTML5, fails custom validation)
+      await user.type(screen.getByLabelText('Email address'), 'test@example')
       await user.type(screen.getByLabelText('Password'), 'password123')
       await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -133,7 +134,21 @@ describe('AuthComponent', () => {
       })
 
       await user.click(screen.getByText("Don't have an account? Sign up"))
-      await user.click(screen.getByRole('button', { name: /sign up/i }))
+
+      // Fill first/last name to bypass that validation, but leave email/password empty
+      await user.type(screen.getByLabelText('First Name'), 'John')
+      await user.type(screen.getByLabelText('Last Name'), 'Doe')
+
+      // Try to submit - should fail on empty email/password
+      const submitButton = screen.getByRole('button', { name: /sign up/i })
+
+      // In jsdom, clicking a button doesn't always trigger HTML5 validation
+      // We need to trigger form submission directly
+      const form = submitButton.closest('form')
+      if (form) {
+        const submitEvent = new Event('submit', { bubbles: true, cancelable: true })
+        form.dispatchEvent(submitEvent)
+      }
 
       await waitFor(() => {
         expect(screen.getByText('Please fill in all fields')).toBeInTheDocument()
@@ -150,7 +165,14 @@ describe('AuthComponent', () => {
       await user.click(screen.getByText("Don't have an account? Sign up"))
       await user.type(screen.getByLabelText('Email address'), 'test@example.com')
       await user.type(screen.getByLabelText('Password'), 'password123')
-      await user.click(screen.getByRole('button', { name: /sign up/i }))
+
+      // Dispatch submit event directly to bypass HTML5 validation
+      const submitButton = screen.getByRole('button', { name: /sign up/i })
+      const form = submitButton.closest('form')
+      if (form) {
+        const submitEvent = new Event('submit', { bubbles: true, cancelable: true })
+        form.dispatchEvent(submitEvent)
+      }
 
       await waitFor(() => {
         expect(screen.getByText('Please enter your first and last name')).toBeInTheDocument()
@@ -225,8 +247,14 @@ describe('AuthComponent', () => {
         providerProps: { signIn: mockSignIn }
       })
 
-      // Trigger an error in login
-      await user.click(screen.getByRole('button', { name: /sign in/i }))
+      // Trigger an error in login by dispatching submit event directly
+      const submitButton = screen.getByRole('button', { name: /sign in/i })
+      const form = submitButton.closest('form')
+      if (form) {
+        const submitEvent = new Event('submit', { bubbles: true, cancelable: true })
+        form.dispatchEvent(submitEvent)
+      }
+
       await waitFor(() => {
         expect(screen.getByText('Please fill in all fields')).toBeInTheDocument()
       })
