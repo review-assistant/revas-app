@@ -128,7 +128,7 @@ describe('AccountSettings', () => {
         }
       )
 
-      await user.click(screen.getByText('Change Password'))
+      await user.click(screen.getByRole('button', { name: 'Change Password' }))
 
       await waitFor(() => {
         expect(screen.getByText('Please fill in all password fields')).toBeInTheDocument()
@@ -152,7 +152,7 @@ describe('AccountSettings', () => {
       await user.type(screen.getByLabelText('Current Password'), 'oldpass123')
       await user.type(screen.getByLabelText('New Password'), '12345')
       await user.type(screen.getByLabelText('Confirm New Password'), '12345')
-      await user.click(screen.getByText('Change Password'))
+      await user.click(screen.getByRole('button', { name: 'Change Password' }))
 
       await waitFor(() => {
         expect(screen.getByText('New password must be at least 6 characters')).toBeInTheDocument()
@@ -176,7 +176,7 @@ describe('AccountSettings', () => {
       await user.type(screen.getByLabelText('Current Password'), 'oldpass123')
       await user.type(screen.getByLabelText('New Password'), 'newpass123')
       await user.type(screen.getByLabelText('Confirm New Password'), 'different123')
-      await user.click(screen.getByText('Change Password'))
+      await user.click(screen.getByRole('button', { name: 'Change Password' }))
 
       await waitFor(() => {
         expect(screen.getByText('New passwords do not match')).toBeInTheDocument()
@@ -202,7 +202,7 @@ describe('AccountSettings', () => {
       await user.type(screen.getByLabelText('Current Password'), 'oldpass123')
       await user.type(screen.getByLabelText('New Password'), 'newpass123')
       await user.type(screen.getByLabelText('Confirm New Password'), 'newpass123')
-      await user.click(screen.getByText('Change Password'))
+      await user.click(screen.getByRole('button', { name: 'Change Password' }))
 
       await waitFor(() => {
         expect(mockChangePassword).toHaveBeenCalledWith('oldpass123', 'newpass123')
@@ -233,7 +233,7 @@ describe('AccountSettings', () => {
       await user.type(screen.getByLabelText('Current Password'), 'wrongpass')
       await user.type(screen.getByLabelText('New Password'), 'newpass123')
       await user.type(screen.getByLabelText('Confirm New Password'), 'newpass123')
-      await user.click(screen.getByText('Change Password'))
+      await user.click(screen.getByRole('button', { name: 'Change Password' }))
 
       await waitFor(() => {
         expect(screen.getByText('Current password is incorrect')).toBeInTheDocument()
@@ -281,8 +281,10 @@ describe('AccountSettings', () => {
 
       await user.click(screen.getByText('Delete My Account'))
 
-      expect(screen.getByText('Delete Account')).toBeInTheDocument()
-      expect(screen.getByText(/Type.*DELETE.*to confirm/i)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Delete Account' })).toBeInTheDocument()
+      expect(screen.getByText((content, element) => {
+        return element?.textContent === 'Type DELETE to confirm:'
+      })).toBeInTheDocument()
     })
 
     it('validates DELETE confirmation text', async () => {
@@ -300,17 +302,17 @@ describe('AccountSettings', () => {
 
       await user.click(screen.getByText('Delete My Account'))
 
-      const deleteButton = screen.getAllByText('Delete Account')[1] // Second one in modal
+      const deleteButton = screen.getByRole('button', { name: 'Delete Account' })
       expect(deleteButton).toBeDisabled()
 
-      // Type wrong text
+      // Type wrong text - button should stay disabled
       await user.type(screen.getByPlaceholderText('Type DELETE'), 'WRONG')
-      await user.click(deleteButton)
+      expect(deleteButton).toBeDisabled()
 
-      await waitFor(() => {
-        expect(screen.getByText('Please type DELETE to confirm')).toBeInTheDocument()
-      })
-      expect(mockDeleteAccount).not.toHaveBeenCalled()
+      // Type correct text - button should become enabled
+      await user.clear(screen.getByPlaceholderText('Type DELETE'))
+      await user.type(screen.getByPlaceholderText('Type DELETE'), 'DELETE')
+      expect(deleteButton).not.toBeDisabled()
     })
 
     it('deletes account when DELETE is typed', async () => {
@@ -331,7 +333,7 @@ describe('AccountSettings', () => {
       await user.click(screen.getByText('Delete My Account'))
       await user.type(screen.getByPlaceholderText('Type DELETE'), 'DELETE')
 
-      const deleteButton = screen.getAllByText('Delete Account')[1]
+      const deleteButton = screen.getByRole('button', { name: 'Delete Account' })
       await user.click(deleteButton)
 
       await waitFor(() => {
@@ -353,12 +355,16 @@ describe('AccountSettings', () => {
       )
 
       await user.click(screen.getByText('Delete My Account'))
-      expect(screen.getByText(/Type.*DELETE/i)).toBeInTheDocument()
+      expect(screen.getByText((content, element) => {
+        return element?.textContent === 'Type DELETE to confirm:'
+      })).toBeInTheDocument()
 
       await user.click(screen.getByText('Cancel'))
 
       await waitFor(() => {
-        expect(screen.queryByText(/Type.*DELETE/i)).not.toBeInTheDocument()
+        expect(screen.queryByText((content, element) => {
+          return element?.textContent === 'Type DELETE to confirm:'
+        })).not.toBeInTheDocument()
       })
     })
   })
