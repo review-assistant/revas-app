@@ -817,6 +817,11 @@ export default function ReviewComponent() {
       // Update original text and deactivate button
       setOriginalText(reviewText);
       setIsModified(false);
+    } catch (error) {
+      // Handle errors from getComments API
+      console.error('Error getting comments:', error);
+      // TODO: Consider showing error message to user
+      // For now, silently fail and allow user to retry
     } finally {
       // Only clear loading if this request is still current
       if (requestId === currentRequestIdRef.current) {

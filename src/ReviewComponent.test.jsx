@@ -177,18 +177,14 @@ describe('ReviewComponent', () => {
   })
 
   describe('Error Handling', () => {
-    // TODO: Component needs error handling added (try-catch in handleUpdate)
-    // Currently handleUpdate only has try-finally, so errors become unhandled rejections
-    it.skip('handles API errors gracefully', async () => {
+    it('handles API errors gracefully', async () => {
       const user = userEvent.setup()
 
       // Suppress console.error for this test since we're intentionally triggering an error
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-      // Mock rejection - note: component doesn't currently have error handling
-      // so we need to catch the unhandled rejection in the test
-      const apiError = new Error('API Error')
-      getComments.mockRejectedValue(apiError)
+      // Mock rejection - component now has error handling in try-catch
+      getComments.mockRejectedValue(new Error('API Error'))
 
       render(<ReviewComponent />)
 
@@ -196,28 +192,18 @@ describe('ReviewComponent', () => {
 
       // Click update button - this will trigger the API call that rejects
       const updateButton = screen.getByRole('button', { name: 'UPDATE' })
-
-      // Catch the unhandled rejection that will occur
-      const errorPromise = new Promise((resolve) => {
-        window.addEventListener('unhandledrejection', (event) => {
-          event.preventDefault() // Prevent the error from failing the test
-          resolve(event.reason)
-        }, { once: true })
-      })
-
       await user.click(updateButton)
 
-      // Wait for the error to be handled
-      await waitFor(() => errorPromise, { timeout: 1000 })
-
-      // Component should still be responsive after error
-      // Give loading state time to clear via finally block
+      // Wait for loading state to clear (error is caught and loading cleared in finally)
       await waitFor(() => {
         expect(screen.queryByText(/Analyzing|Processing/)).not.toBeInTheDocument()
       }, { timeout: 1000 })
 
-      // UPDATE button should still exist (component didn't crash)
+      // Component should still be responsive after error
       expect(screen.getByText('UPDATE')).toBeInTheDocument()
+
+      // Error should have been logged
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Error getting comments:', expect.any(Error))
 
       // Restore console.error
       consoleErrorSpy.mockRestore()
