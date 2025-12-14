@@ -11,31 +11,43 @@ afterEach(() => {
 vi.mock('../supabaseClient', () => ({
   supabase: {
     auth: {
-      signUp: vi.fn(),
-      signInWithPassword: vi.fn(),
-      signOut: vi.fn(),
-      getSession: vi.fn(),
+      signUp: vi.fn(() => Promise.resolve({
+        data: { user: null, session: null },
+        error: null
+      })),
+      signInWithPassword: vi.fn(() => Promise.resolve({
+        data: { user: null, session: null },
+        error: null
+      })),
+      signOut: vi.fn(() => Promise.resolve({ error: null })),
+      getSession: vi.fn(() => Promise.resolve({
+        data: { session: null },
+        error: null
+      })),
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } }
       })),
-      updateUser: vi.fn(),
+      updateUser: vi.fn(() => Promise.resolve({
+        data: { user: null },
+        error: null
+      })),
     },
     from: vi.fn(() => ({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
-          single: vi.fn(),
+          single: vi.fn(() => Promise.resolve({ data: null, error: null })),
         })),
       })),
-      insert: vi.fn(),
+      insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
       update: vi.fn(() => ({
         eq: vi.fn(() => ({
-          select: vi.fn(),
+          select: vi.fn(() => Promise.resolve({ data: null, error: null })),
         })),
       })),
       delete: vi.fn(() => ({
-        eq: vi.fn(),
+        eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
       })),
     })),
-    rpc: vi.fn(),
+    rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
   },
 }))

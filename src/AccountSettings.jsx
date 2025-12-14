@@ -170,10 +170,11 @@ export default function AccountSettings({ onBack }) {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email
               </label>
               <input
+                id="email"
                 type="email"
                 value={user?.email || ''}
                 disabled

@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react'
-import { AuthProvider } from '../AuthContext'
+import { vi } from 'vitest'
+import { AuthContext } from '../AuthContext'
 
 /**
  * Custom render function that wraps components with necessary providers
@@ -22,9 +23,9 @@ export function renderWithAuth(ui, { providerProps = {}, ...renderOptions } = {}
 
   function Wrapper({ children }) {
     return (
-      <AuthProvider value={{ ...defaultProviderProps, ...providerProps }}>
+      <AuthContext.Provider value={{ ...defaultProviderProps, ...providerProps }}>
         {children}
-      </AuthProvider>
+      </AuthContext.Provider>
     )
   }
 

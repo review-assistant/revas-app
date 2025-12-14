@@ -1,6 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { AuthProvider, useAuth } from './AuthContext'
+
+// Unmock supabaseClient for integration tests (global mock is in setup.js for unit tests)
+vi.unmock('./supabaseClient')
 import { supabase } from './supabaseClient'
 
 /**
@@ -14,7 +17,7 @@ import { supabase } from './supabaseClient'
 
 const SKIP_INTEGRATION = process.env.SKIP_INTEGRATION_TESTS === 'true'
 
-describe.skipIf(SKIP_INTEGRATION)('AuthContext Integration Tests', () => {
+describe.skipIf(SKIP_INTEGRATION).sequential('AuthContext Integration Tests', () => {
   const testEmail = `integration-test-${Date.now()}@example.com`
   const testPassword = 'testpass123'
   let testUserId = null
@@ -77,16 +80,8 @@ describe.skipIf(SKIP_INTEGRATION)('AuthContext Integration Tests', () => {
   })
 
   it('signs in with existing credentials', async () => {
-    // First create a user
-    const { data: signUpData } = await supabase.auth.signUp({
-      email: testEmail,
-      password: testPassword
-    })
-
-    testUserId = signUpData.user.id
-
-    // Sign out
-    await supabase.auth.signOut()
+    // Use the user created in the first test
+    // (testEmail, testPassword, and testUserId are already set)
 
     // Now test sign in through context
     const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>
@@ -114,13 +109,12 @@ describe.skipIf(SKIP_INTEGRATION)('AuthContext Integration Tests', () => {
   })
 
   it('updates user profile', async () => {
-    // Create and sign in user
-    const { data } = await supabase.auth.signUp({
+    // Use the user created in the first test
+    // Sign in first
+    await supabase.auth.signInWithPassword({
       email: testEmail,
       password: testPassword
     })
-
-    testUserId = data.user.id
 
     const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>
     const { result } = renderHook(() => useAuth(), { wrapper })
@@ -158,13 +152,12 @@ describe.skipIf(SKIP_INTEGRATION)('AuthContext Integration Tests', () => {
   })
 
   it('changes user password', async () => {
-    // Create and sign in user
-    const { data } = await supabase.auth.signUp({
+    // Use the user created in the first test
+    // Sign in first (note: password might have been changed in previous test, but we'll use original)
+    await supabase.auth.signInWithPassword({
       email: testEmail,
       password: testPassword
     })
-
-    testUserId = data.user.id
 
     const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>
     const { result } = renderHook(() => useAuth(), { wrapper })
@@ -191,16 +184,25 @@ describe.skipIf(SKIP_INTEGRATION)('AuthContext Integration Tests', () => {
     })
 
     expect(error).toBeNull()
+
+    // Change password back to original for subsequent tests
+    const { result: result2 } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => {
+      expect(result2.current.user).not.toBeNull()
+    }, { timeout: 5000 })
+
+    await act(async () => {
+      await result2.current.changePassword(newPassword, testPassword)
+    })
   })
 
   it('exports user data', async () => {
-    // Create and sign in user
-    const { data } = await supabase.auth.signUp({
+    // Use the user created in the first test
+    // Sign in first
+    await supabase.auth.signInWithPassword({
       email: testEmail,
       password: testPassword
     })
-
-    testUserId = data.user.id
 
     // Update profile
     await supabase
