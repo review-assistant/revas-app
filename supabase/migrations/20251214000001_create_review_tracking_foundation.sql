@@ -49,11 +49,14 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ============================================================================
 
 -- Papers table: Top-level entity with embargo management
+-- Papers can be created by admins OR auto-created by reviewers
 CREATE TABLE public.papers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT,
   conference_or_journal TEXT,
-  created_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  -- Track which reviewer auto-created this paper (NULL if admin-created)
+  -- Used by admins to review auto-created entries for correctness
+  auto_created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   -- Embargo management (admin controlled)
   embargo_active BOOLEAN NOT NULL DEFAULT true,
   embargo_lifted_at TIMESTAMP WITH TIME ZONE,
@@ -136,7 +139,7 @@ CREATE TABLE public.review_item_interactions (
 -- ============================================================================
 
 -- Papers indexes
-CREATE INDEX idx_papers_created_by ON public.papers(created_by_user_id);
+CREATE INDEX idx_papers_auto_created_by ON public.papers(auto_created_by);
 CREATE INDEX idx_papers_embargo ON public.papers(embargo_active);
 CREATE INDEX idx_papers_training ON public.papers(training_data_exported)
   WHERE training_data_exported = false;
@@ -177,21 +180,15 @@ ALTER TABLE public.review_item_interactions ENABLE ROW LEVEL SECURITY;
 -- ============================================================================
 
 -- Papers policies
-CREATE POLICY "Users can view related papers"
+-- Papers are publicly viewable metadata (title, conference)
+-- Privacy is enforced at the review level, not the paper level
+CREATE POLICY "Anyone can view papers"
   ON public.papers FOR SELECT
-  USING (
-    auth.uid() = created_by_user_id OR
-    EXISTS (
-      SELECT 1 FROM public.reviews
-      WHERE reviews.paper_id = papers.id
-      AND reviews.reviewer_user_id = auth.uid()
-    ) OR
-    (SELECT is_admin FROM public.profiles WHERE id = auth.uid())
-  );
+  USING (true);  -- All authenticated users can see all papers
 
-CREATE POLICY "Users can create papers"
+CREATE POLICY "Anyone can create papers"
   ON public.papers FOR INSERT
-  WITH CHECK (auth.uid() = created_by_user_id);
+  WITH CHECK (true);  -- Reviewers can auto-create, admins can manually create
 
 CREATE POLICY "Admins can update papers"
   ON public.papers FOR UPDATE

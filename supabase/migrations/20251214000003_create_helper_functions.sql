@@ -28,20 +28,20 @@ BEGIN
     LIMIT 1;
   END IF;
 
-  -- If no match, create new paper
+  -- If no match, create new paper (auto-created by current reviewer)
   IF v_paper_id IS NULL THEN
     INSERT INTO public.papers (
       title,
       conference_or_journal,
-      created_by_user_id
+      auto_created_by
     ) VALUES (
       p_title,
       p_conference,
-      auth.uid()
+      auth.uid()  -- Track which reviewer auto-created this paper
     )
     RETURNING id INTO v_paper_id;
 
-    PERFORM log_audit_event('paper_created', 'paper', v_paper_id, NULL);
+    PERFORM log_audit_event('paper_auto_created', 'paper', v_paper_id, NULL);
   END IF;
 
   RETURN v_paper_id;
@@ -413,8 +413,8 @@ BEGIN
   -- Log deletion before deleting audit logs
   PERFORM log_audit_event('account_deletion', 'user', v_user_id, NULL);
 
-  -- Update papers to remove user reference
-  UPDATE public.papers SET created_by_user_id = NULL WHERE created_by_user_id = v_user_id;
+  -- Update papers to remove user references
+  UPDATE public.papers SET auto_created_by = NULL WHERE auto_created_by = v_user_id;
   UPDATE public.papers SET embargo_lifted_by = NULL WHERE embargo_lifted_by = v_user_id;
 
   -- Anonymize audit logs (keep for compliance)

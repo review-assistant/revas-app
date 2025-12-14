@@ -113,7 +113,7 @@ describe('Database Integration Tests', () => {
   })
 
   describe('RLS Policies - Papers', () => {
-    testFn('users can only see papers they created or have reviews for', async () => {
+    testFn('all users can view papers (papers are public metadata)', async () => {
       // User 1 creates a paper
       const { data: paperId1, error: error1 } = await supabase1.rpc('get_or_create_paper', {
         p_title: 'User 1 Paper',
@@ -133,14 +133,15 @@ describe('Database Integration Tests', () => {
       expect(user1Papers).toHaveLength(1)
       expect(user1Papers[0].title).toBe('User 1 Paper')
 
-      // User 2 cannot see User 1's paper (no review yet)
+      // User 2 CAN also see User 1's paper (papers are public)
       const { data: user2Papers, error: error3 } = await supabase2
         .from('papers')
         .select('*')
         .eq('id', paperId1)
 
       expect(error3).toBeNull()
-      expect(user2Papers).toHaveLength(0) // RLS blocks access
+      expect(user2Papers).toHaveLength(1) // Papers are publicly viewable
+      expect(user2Papers[0].title).toBe('User 1 Paper')
     }, 15000)
   })
 
