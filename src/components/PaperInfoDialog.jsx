@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 
 /**
  * PaperInfoDialog - Modal dialog for collecting paper information
@@ -6,10 +7,58 @@ import React, { useState } from 'react';
  * Prompts user for optional paper title and conference/journal information
  * on first use. This information is used to match existing papers or create
  * a new paper entry in the database.
+ *
+ * Smart features:
+ * - Pre-populates with user's most recent unlocked review (if exists)
+ * - Single button: "Skip" when blank, "Continue" when filled
  */
 export default function PaperInfoDialog({ onSubmit, onCancel }) {
   const [title, setTitle] = useState('');
   const [conference, setConference] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load user's most recent unlocked review on mount
+  useEffect(() => {
+    loadMostRecentReview();
+  }, []);
+
+  const loadMostRecentReview = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Get most recent unlocked review with paper info
+      const { data: reviews, error } = await supabase
+        .from('reviews')
+        .select(`
+          id,
+          paper_id,
+          papers (
+            title,
+            conference_or_journal
+          )
+        `)
+        .eq('reviewer_user_id', session.user.id)
+        .eq('is_locked', false)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      if (reviews && reviews.length > 0 && reviews[0].papers) {
+        const paper = reviews[0].papers;
+        setTitle(paper.title || '');
+        setConference(paper.conference_or_journal || '');
+      }
+    } catch (error) {
+      console.error('Error loading recent review:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -19,9 +68,9 @@ export default function PaperInfoDialog({ onSubmit, onCancel }) {
     });
   };
 
-  const handleSkip = () => {
-    onSubmit({ title: null, conference: null });
-  };
+  // Determine button text based on form state
+  const hasData = title.trim() || conference.trim();
+  const buttonText = hasData ? 'Continue' : 'Skip';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -68,29 +117,14 @@ export default function PaperInfoDialog({ onSubmit, onCancel }) {
             </p>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="pt-2">
             <button
               type="submit"
-              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+              disabled={isLoading}
+              className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white font-medium py-2 px-4 rounded-md transition-colors"
             >
-              Continue
+              {isLoading ? 'Loading...' : buttonText}
             </button>
-            <button
-              type="button"
-              onClick={handleSkip}
-              className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-md transition-colors"
-            >
-              Skip
-            </button>
-            {onCancel && (
-              <button
-                type="button"
-                onClick={onCancel}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                Cancel
-              </button>
-            )}
           </div>
         </form>
       </div>

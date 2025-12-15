@@ -459,6 +459,27 @@ export default function ReviewComponent() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Autosave: start timer on keypress if not already running
+  const autosaveTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (!reviewId || !isModified || isLocked) return;
+
+    // Only start timer if one isn't already running
+    if (!autosaveTimerRef.current) {
+      console.log('Autosave: starting 30-second timer');
+      autosaveTimerRef.current = setTimeout(() => {
+        console.log('Autosave: timer expired, saving now');
+        saveReviewDraft();
+        autosaveTimerRef.current = null;
+      }, 30000); // 30 seconds
+    }
+
+    return () => {
+      // Don't clear the timer on every render, only on unmount
+    };
+  }, [reviewText, reviewId, isModified, isLocked]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Initialize or load review
   const initializeReview = async () => {
     try {
@@ -518,68 +539,87 @@ export default function ReviewComponent() {
   // Load review data from database
   const loadReviewData = async (loadReviewId) => {
     try {
-      // Fetch review with items, scores, and interactions
+      // Use RPC function to fetch and decrypt review content
       const { data: review, error: reviewError } = await supabase
-        .from('reviews')
-        .select(`
-          *,
-          review_items (
-            *,
-            review_item_scores (*),
-            review_item_interactions (*)
-          )
-        `)
-        .eq('id', loadReviewId)
-        .single();
+        .rpc('load_review_content', { p_review_id: loadReviewId });
 
       if (reviewError) throw reviewError;
 
       if (!review || !review.review_items || review.review_items.length === 0) {
-        // No existing review content
+        // No existing review content, start fresh
+        console.log('No existing review content found');
         return;
       }
 
       // Check if review is locked
       setIsLocked(review.is_locked);
 
-      // Reconstruct paragraphs with IDs from review_items
-      // Group by paragraph_id and get latest version
-      const paragraphMap = new Map();
+      // Reconstruct paragraphs from decrypted review_items
+      const paragraphTexts = [];
+      const paragraphsWithIds = [];
+      const commentsData = {};
+      const dismissedCommentsData = {};
 
       review.review_items.forEach(item => {
-        if (!item.is_deleted) {
-          const existing = paragraphMap.get(item.paragraph_id);
-          if (!existing || item.version > existing.version) {
-            paragraphMap.set(item.paragraph_id, item);
-          }
+        const paragraphId = item.paragraph_id;
+        const decryptedContent = item.content || '';
+        const hasComments = item.scores && Object.keys(item.scores).length > 0;
+
+        // Add to paragraphs array
+        paragraphTexts.push(decryptedContent);
+
+        // If paragraph has no comments, treat as "in progress" - set originalContent to empty
+        // so isModified will be true and UPDATE will fetch comments
+        paragraphsWithIds.push({
+          id: paragraphId,
+          originalContent: hasComments ? decryptedContent : '',
+          currentContent: decryptedContent
+        });
+
+        // Reconstruct comments if they exist
+        if (hasComments) {
+          commentsData[paragraphId] = [];
+          Object.entries(item.scores).forEach(([dimension, scoreData]) => {
+            const severity = scoreToSeverity(scoreData.score);
+            commentsData[paragraphId].push({
+              severity: severity,
+              label: dimension,
+              text: scoreData.comment || '',
+              score: scoreData.score
+            });
+          });
+        }
+
+        // Reconstruct dismissed comments if they exist
+        if (item.interactions) {
+          Object.entries(item.interactions).forEach(([dimension, interaction]) => {
+            if (interaction.comment_dismissed) {
+              if (!dismissedCommentsData[paragraphId]) {
+                dismissedCommentsData[paragraphId] = [];
+              }
+              dismissedCommentsData[paragraphId].push(dimension);
+            }
+          });
         }
       });
 
-      // Convert to sorted array by paragraph_id
-      const sortedParagraphs = Array.from(paragraphMap.values())
-        .sort((a, b) => a.paragraph_id - b.paragraph_id);
-
-      if (sortedParagraphs.length > 0) {
-        // Reconstruct review text from paragraphs
-        const paragraphTexts = sortedParagraphs.map(item => item.content_encrypted);
-
-        // Note: content is encrypted in database, will be decrypted by RPC function
-        // For now, we'll just set empty text and let user start fresh
-        // TODO: Implement decryption on load
-        // setReviewText(paragraphTexts.join('\n\n'));
-
-        // Set up paragraph IDs
-        const paragraphsWithIds = sortedParagraphs.map(item => ({
-          id: item.paragraph_id,
-          originalContent: '', // Will be set on first save
-          currentContent: '' // Will be filled by user
-        }));
-
+      // Update state with loaded content
+      if (paragraphTexts.length > 0) {
+        setReviewText(paragraphTexts.join('\n\n'));
         setParagraphsWithIds(paragraphsWithIds);
-        nextParagraphIdRef.current = Math.max(...sortedParagraphs.map(p => p.paragraph_id)) + 1;
+        setCommentsByParagraphId(commentsData);
+        setDismissedComments(dismissedCommentsData);
+        nextParagraphIdRef.current = Math.max(...paragraphsWithIds.map(p => p.id)) + 1;
+
+        // Set isModified to true if any paragraph has no comments (in progress)
+        const hasInProgressParagraphs = paragraphsWithIds.some(p => p.originalContent === '');
+        setIsModified(hasInProgressParagraphs);
       }
 
-      console.log('Review data loaded successfully');
+      console.log('Review data loaded successfully', {
+        paragraphs: paragraphsWithIds.length,
+        comments: Object.keys(commentsData).length
+      });
     } catch (error) {
       console.error('Error loading review data:', error);
     }
@@ -591,6 +631,8 @@ export default function ReviewComponent() {
       console.log('Skipping save: no reviewId or review is locked');
       return;
     }
+
+    const startTime = Date.now();
 
     try {
       setSavingStatus('saving');
@@ -612,8 +654,15 @@ export default function ReviewComponent() {
       if (error) throw error;
 
       setLastSavedAt(new Date());
-      setSavingStatus('saved');
-      console.log('Review draft saved successfully');
+
+      // Ensure indicator is visible for at least 2 seconds
+      const elapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, 2000 - elapsed);
+
+      setTimeout(() => {
+        setSavingStatus('saved');
+        console.log('Review draft saved successfully');
+      }, remainingTime);
     } catch (error) {
       console.error('Error saving review draft:', error);
       setSavingStatus('error');
@@ -1106,6 +1155,11 @@ export default function ReviewComponent() {
       {/* Header */}
       <p className="absolute font-normal text-[20px] text-black top-[15px] left-[22px] w-[1036px]">
         Edit your review:
+        {savingStatus === 'saving' && (
+          <span className="ml-3 text-[12px] text-gray-400 italic font-normal">
+            saving...
+          </span>
+        )}
       </p>
 
       {/* Severity Statistics Bar - Centered */}
@@ -1218,30 +1272,30 @@ export default function ReviewComponent() {
               </div>
             )}
 
+
             {/* Hidden text with paragraph spans for alignment calculations */}
             <div
               ref={hiddenTextRef}
               className="absolute top-[10px] left-[20px] right-[20px] pointer-events-none opacity-0 font-normal text-[12px] text-black leading-normal whitespace-pre-wrap"
               aria-hidden="true"
             >
-              {textBlocks.map((block, index) => {
-                if (block.type === 'paragraph') {
-                  return (
-                    <div key={`p-${block.id}`} data-paragraph-id={block.id} className="block">
-                      {block.content}
-                    </div>
-                  );
-                } else {
-                  // Render blank line
-                  return <div key={`b-${index}`} className="block">&nbsp;</div>;
-                }
-              })}
+              {paragraphsWithIds.map((paragraph, index) => (
+                <React.Fragment key={paragraph.id}>
+                  {index > 0 && <div className="block">&nbsp;</div>}
+                  <div data-paragraph-id={paragraph.id} className="block">
+                    {paragraph.currentContent}
+                  </div>
+                </React.Fragment>
+              ))}
             </div>
 
             {/* Comment Bars */}
             {paragraphsWithIds.map((paragraph, index) => {
-              const position = paragraphPositions[index];
-              if (!position) return null;
+              const position = paragraphPositions[paragraph.id];  // FIX: Use paragraph.id, not index
+              if (!position) {
+                console.log(`No position for paragraph ${paragraph.id}`);
+                return null;
+              }
 
               const id = paragraph.id;
               const color = getCommentBarColor(id);
@@ -1252,7 +1306,7 @@ export default function ReviewComponent() {
               const visibleComments = getVisibleComments(id);
               const hasNoVisibleComments = hasBeenAnalyzed && visibleComments.length === 0;
 
-              // Only render if there are comments OR paragraph is modified OR has no visible comments (show green bar)
+              // Render if: there are comments OR paragraph is modified OR has no visible comments (show green bar)
               if (!color && !isModified && !hasNoVisibleComments) return null;
 
               const isOpen = openCommentBar === id;
@@ -1521,7 +1575,7 @@ export default function ReviewComponent() {
           {/* Comment Frame - Only show when a comment bar is open */}
           {openCommentBar !== null && (() => {
             const paragraphIndex = paragraphsWithIds.findIndex(p => p.id === openCommentBar);
-            const position = paragraphIndex >= 0 ? paragraphPositions[paragraphIndex] : null;
+            const position = paragraphPositions[openCommentBar];  // FIX: Use openCommentBar (paragraph ID), not index
             const paragraphComments = commentsByParagraphId[openCommentBar];
 
             return (
