@@ -34,12 +34,14 @@ export default function MyTables({ onBack }) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
-          <button
-            onClick={onBack}
-            className="mb-6 text-blue-600 hover:text-blue-800"
-          >
-            ← Back to App
-          </button>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="mb-6 text-blue-600 hover:text-blue-800"
+            >
+              ← Back to App
+            </button>
+          )}
           <div className="text-center py-12">
             <div className="text-xl text-gray-600">Loading...</div>
           </div>
@@ -52,12 +54,14 @@ export default function MyTables({ onBack }) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
-          <button
-            onClick={onBack}
-            className="mb-6 text-blue-600 hover:text-blue-800"
-          >
-            ← Back to App
-          </button>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="mb-6 text-blue-600 hover:text-blue-800"
+            >
+              ← Back to App
+            </button>
+          )}
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
             <h2 className="text-xl font-bold text-red-800 mb-2">Error</h2>
             <p className="text-red-600">{error}</p>
@@ -72,12 +76,14 @@ export default function MyTables({ onBack }) {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">My Tables (Decrypted)</h1>
-          <button
-            onClick={onBack}
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
-          >
-            ← Back to App
-          </button>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
+            >
+              ← Back to App
+            </button>
+          )}
         </div>
 
         <button

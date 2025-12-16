@@ -5,10 +5,15 @@ import ReviewComponent from './ReviewComponent'
 import AccountSettings from './AccountSettings'
 import MyTables from './MyTables'
 
-function AccountDropdown({ onSettings, onTables }) {
+function AccountDropdown({ onSettings }) {
   const [isOpen, setIsOpen] = useState(false)
   const { user, signOut } = useAuth()
   const dropdownRef = useRef(null)
+
+  const handleOpenMyTables = () => {
+    window.open('/?view=tables', '_blank')
+    setIsOpen(false)
+  }
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -64,10 +69,7 @@ function AccountDropdown({ onSettings, onTables }) {
               Account Settings
             </button>
             <button
-              onClick={() => {
-                onTables()
-                setIsOpen(false)
-              }}
+              onClick={handleOpenMyTables}
               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -98,7 +100,19 @@ function AccountDropdown({ onSettings, onTables }) {
 function App() {
   const { user, loading } = useAuth()
   const [currentView, setCurrentView] = useState('main') // 'main' | 'settings' | 'tables'
+  const [isStandaloneTable, setIsStandaloneTable] = useState(false)
   const reviewComponentRef = useRef(null)
+
+  // Check URL parameters on mount to handle standalone views
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const viewParam = urlParams.get('view')
+
+    if (viewParam === 'tables') {
+      setCurrentView('tables')
+      setIsStandaloneTable(true)
+    }
+  }, [])
 
   // Save draft before navigating away from main view
   const handleNavigate = useCallback(async (view) => {
@@ -132,15 +146,17 @@ function App() {
   }
 
   if (currentView === 'tables') {
-    return <MyTables onBack={() => handleNavigate('main')} />
+    return (
+      <div className="relative">
+        <AccountDropdown onSettings={() => handleNavigate('settings')} />
+        <MyTables onBack={isStandaloneTable ? null : () => handleNavigate('main')} />
+      </div>
+    )
   }
 
   return (
     <div className="relative">
-      <AccountDropdown
-        onSettings={() => handleNavigate('settings')}
-        onTables={() => handleNavigate('tables')}
-      />
+      <AccountDropdown onSettings={() => handleNavigate('settings')} />
       <ReviewComponent ref={reviewComponentRef} />
     </div>
   )
