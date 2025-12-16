@@ -1401,7 +1401,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
         </p>
         <button
           onClick={handleDiscard}
-          className="px-3 py-1 text-[14px] bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+          className="px-2 py-0.5 text-[12px] text-gray-500 border border-gray-300 rounded hover:bg-gray-100 hover:text-gray-700 transition-colors"
           title={currentReview?.paperTitle || 'Discard this review'}
         >
           Discard
@@ -1538,20 +1538,6 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
               {(() => {
                 const blocks = parseTextBlocks(reviewText);
                 let paragraphCount = 0;
-
-                // Debug: check for mismatch between blocks and paragraphsWithIds
-                const numParagraphBlocks = blocks.filter(b => b.type === 'paragraph').length;
-                if (numParagraphBlocks !== paragraphsWithIds.length) {
-                  console.warn('Paragraph count mismatch:', {
-                    blocksCount: numParagraphBlocks,
-                    paragraphsWithIdsCount: paragraphsWithIds.length,
-                    blocks: blocks.filter(b => b.type === 'paragraph').map(b => b.content.substring(0, 30) + '...'),
-                    paragraphsWithIds: paragraphsWithIds.map(p => ({
-                      id: p.id,
-                      preview: p.currentContent.substring(0, 30) + '...'
-                    }))
-                  });
-                }
 
                 return blocks.map((block, index) => {
                   if (block.type === 'blank') {

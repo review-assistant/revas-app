@@ -27,12 +27,12 @@ BEGIN
       WHERE ri.review_id = r.id
       AND ri.is_deleted = false
     )::INTEGER AS paragraph_count,
-    -- Count words from draft_content
+    -- Count words from draft_content (split on any whitespace)
     (
       SELECT
         CASE
           WHEN r.draft_content IS NULL OR r.draft_content = '' THEN 0
-          ELSE array_length(string_to_array(trim(r.draft_content), ' '), 1)
+          ELSE array_length(regexp_split_to_array(trim(r.draft_content), '\s+'), 1)
         END
     )::INTEGER AS word_count,
     r.is_locked

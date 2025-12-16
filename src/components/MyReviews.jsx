@@ -95,9 +95,12 @@ export default function MyReviews({ onSelectReview, onCancel }) {
 
   const getButtonText = () => {
     if (selectedReviewId) {
-      return 'Continue Editing'
+      const review = reviews.find(r => r.review_id === selectedReviewId)
+      const reviewName = review?.paper_title || '(No title)'
+      return `Continue Editing ${reviewName}`
     } else {
-      return 'New Review'
+      const reviewName = newPaperTitle.trim() || getPlaceholderTitle()
+      return `Create ${reviewName}`
     }
   }
 
@@ -154,28 +157,30 @@ export default function MyReviews({ onSelectReview, onCancel }) {
                 <button
                   key={review.review_id}
                   onClick={() => handleSelectReview(review.review_id)}
-                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                  className={`w-full text-left p-2 rounded-lg border-2 transition-all ${
                     isSelected
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-gray-300 bg-white'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold text-gray-900">
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="font-semibold text-gray-900 flex-shrink-0">
                       {review.paper_title || '(No title)'}
-                    </h3>
-                    <span className="text-sm text-gray-500">
+                    </span>
+                    <span className="text-gray-600 flex-shrink-0">
+                      {review.paper_conference || '(No conference)'}
+                    </span>
+                    <span className="text-gray-500 flex-shrink-0">
                       {formatDate(review.last_updated)}
                     </span>
-                  </div>
-                  <div className="text-sm text-gray-600 mb-2">
-                    {review.paper_conference || '(No conference)'}
-                  </div>
-                  <div className="flex gap-4 text-sm text-gray-500">
-                    <span>{review.paragraph_count} items</span>
-                    <span>{review.word_count} words</span>
+                    <span className="text-gray-500 flex-shrink-0">
+                      {review.paragraph_count} items
+                    </span>
+                    <span className="text-gray-500 flex-shrink-0">
+                      {review.word_count} words
+                    </span>
                     {review.is_locked && (
-                      <span className="text-yellow-600">🔒 Locked</span>
+                      <span className="text-yellow-600 flex-shrink-0">🔒</span>
                     )}
                   </div>
                 </button>
@@ -185,72 +190,40 @@ export default function MyReviews({ onSelectReview, onCancel }) {
         )}
 
         {/* Create New Review Section */}
-        <div className="border-t pt-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Create New Review
-          </h3>
-          <button
-            onClick={handleCreateNew}
-            className={`w-full text-left p-4 rounded-lg border-2 transition-all mb-4 ${
-              selectedReviewId === null
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300 bg-white'
-            }`}
-          >
-            <div className="text-blue-600 font-medium mb-2">
-              + Start a new review
-            </div>
-            <div className="text-sm text-gray-500">
-              Click to create a new review with the details below
-            </div>
-          </button>
-
-          {selectedReviewId === null && (
-            <div className="space-y-4 bg-blue-50 p-4 rounded-lg">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Paper Title or Review Nickname
-                </label>
-                <input
-                  type="text"
-                  value={newPaperTitle}
-                  onChange={(e) => setNewPaperTitle(e.target.value)}
-                  placeholder={getPlaceholderTitle()}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Conference or Journal
-                </label>
-                <input
-                  type="text"
-                  value={newPaperConference}
-                  onChange={(e) => setNewPaperConference(e.target.value)}
-                  placeholder={getPlaceholderConference()}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="text-xs text-gray-500">
-                Leave fields blank to use placeholder values shown above
-              </div>
-            </div>
-          )}
+        <div className="border-t pt-4">
+          <div className="flex gap-3 items-center p-2 bg-gray-50 rounded-lg mb-4">
+            <input
+              type="text"
+              value={newPaperTitle}
+              onChange={(e) => {
+                setNewPaperTitle(e.target.value)
+                setSelectedReviewId(null)
+              }}
+              onFocus={() => setSelectedReviewId(null)}
+              placeholder={getPlaceholderTitle()}
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="text"
+              value={newPaperConference}
+              onChange={(e) => {
+                setNewPaperConference(e.target.value)
+                setSelectedReviewId(null)
+              }}
+              onFocus={() => setSelectedReviewId(null)}
+              placeholder={getPlaceholderConference()}
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3 mt-6">
+        {/* Action Button */}
+        <div className="mt-6">
           <button
             onClick={handleContinue}
-            className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
             {getButtonText()}
-          </button>
-          <button
-            onClick={onCancel}
-            className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-          >
-            Cancel
           </button>
         </div>
       </div>
