@@ -30,9 +30,15 @@ test.describe('Authentication Flow', () => {
     // Step 3: Submit signup
     await page.click('button:has-text("Sign up")')
 
-    // Step 4: Verify logged in (should see email in account dropdown and My Reviews modal)
-    await expect(page.locator(`text=${testEmail}`)).toBeVisible({ timeout: 10000 })
-    await expect(page.locator('text=My Reviews')).toBeVisible({ timeout: 5000 })
+    // Step 4: Verify logged in (should see My Reviews modal)
+    await expect(page.locator('text=My Reviews')).toBeVisible({ timeout: 10000 })
+
+    // Create a review so we can access the account dropdown
+    await page.click('button:has-text("Create")')
+    await expect(page.locator('textarea')).toBeVisible({ timeout: 5000 })
+
+    // Now email dropdown should be accessible
+    await expect(page.locator(`text=${testEmail}`)).toBeVisible()
 
     // Step 5: Logout
     await page.click(`text=${testEmail}`)

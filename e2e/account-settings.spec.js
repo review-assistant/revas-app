@@ -27,8 +27,17 @@ test.describe('Account Settings', () => {
     await page.check('input[type="checkbox"]')
     await page.click('button:has-text("Sign up")')
 
-    // Wait for login to complete
-    await expect(page.locator(`text=${testEmail}`)).toBeVisible({ timeout: 10000 })
+    // Wait for login to complete - My Reviews modal should appear
+    await expect(page.locator('text=My Reviews')).toBeVisible({ timeout: 10000 })
+
+    // Create a review so we can access the main page
+    await page.click('button:has-text("Create")')
+
+    // Wait for review editor to load
+    await expect(page.locator('textarea')).toBeVisible({ timeout: 5000 })
+
+    // Now email dropdown should be accessible
+    await expect(page.locator(`text=${testEmail}`)).toBeVisible()
 
     return testEmail // Return email so test can use it
   }
