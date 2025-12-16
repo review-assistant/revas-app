@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 
-export default function MyReviews({ onSelectReview, onCancel }) {
+export default function MyReviews({ onSelectReview, onCancel, showCloseButton = false }) {
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -13,6 +13,20 @@ export default function MyReviews({ onSelectReview, onCancel }) {
     loadReviews()
   }, [])
 
+  // Handle escape key to dismiss modal (only when close button is shown)
+  useEffect(() => {
+    if (!showCloseButton) return
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && onCancel) {
+        onCancel()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [onCancel, showCloseButton])
+
   const loadReviews = async () => {
     try {
       setLoading(true)
@@ -22,6 +36,7 @@ export default function MyReviews({ onSelectReview, onCancel }) {
 
       if (rpcError) throw rpcError
 
+      console.log('get_my_reviews raw data:', data)
       setReviews(data || [])
 
       // Pre-select the most recent review (first in list)
@@ -53,6 +68,16 @@ export default function MyReviews({ onSelectReview, onCancel }) {
       const paperTitle = newPaperTitle.trim() || `Review-${reviewCount + 1}`
       const paperConference = newPaperConference.trim() || new Date().toISOString().split('T')[0]
 
+      // Check if a review with this title already exists
+      const duplicateReview = reviews.find(r =>
+        r.paper_title && r.paper_title.toLowerCase() === paperTitle.toLowerCase()
+      )
+
+      if (duplicateReview) {
+        setError(`You already have a review titled "${paperTitle}". Please choose a different title or select your existing review above.`)
+        return
+      }
+
       onSelectReview({
         reviewId: null,
         paperId: null,
@@ -65,10 +90,12 @@ export default function MyReviews({ onSelectReview, onCancel }) {
 
   const handleSelectReview = (reviewId) => {
     setSelectedReviewId(reviewId)
+    setError(null) // Clear any error when selecting a review
   }
 
   const handleCreateNew = () => {
     setSelectedReviewId(null)
+    setError(null) // Clear any error when creating new
   }
 
   const formatDate = (dateString) => {
@@ -124,7 +151,8 @@ export default function MyReviews({ onSelectReview, onCancel }) {
     )
   }
 
-  if (error) {
+  // Only show full-screen error for loading errors, not validation errors
+  if (error && loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-8 max-w-3xl w-full mx-4">
@@ -146,7 +174,20 @@ export default function MyReviews({ onSelectReview, onCancel }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-8 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">My Reviews</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">My Reviews</h2>
+          {showCloseButton && (
+            <button
+              onClick={onCancel}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+              title="Close (Esc)"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
 
         {/* Existing Reviews List */}
         {reviews.length > 0 && (
@@ -202,8 +243,12 @@ export default function MyReviews({ onSelectReview, onCancel }) {
                 onChange={(e) => {
                   setNewPaperTitle(e.target.value)
                   setSelectedReviewId(null)
+                  setError(null) // Clear error when typing
                 }}
-                onFocus={() => setSelectedReviewId(null)}
+                onFocus={() => {
+                  setSelectedReviewId(null)
+                  setError(null) // Clear error when focusing
+                }}
                 placeholder={getPlaceholderTitle()}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -227,8 +272,15 @@ export default function MyReviews({ onSelectReview, onCancel }) {
           </div>
         </div>
 
+        {/* Inline Error Message */}
+        {error && !loading && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        )}
+
         {/* Action Button */}
-        <div className="mt-6">
+        <div className="mt-4">
           <button
             onClick={handleContinue}
             className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"

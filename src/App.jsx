@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from './AuthContext'
+import { supabase } from './supabaseClient'
 import AuthComponent from './AuthComponent'
 import ReviewComponent from './ReviewComponent'
 import AccountSettings from './AccountSettings'
@@ -141,12 +142,53 @@ function App() {
     setShowMyReviews(false)
   }
 
-  const handleDiscardReview = () => {
+  const handleDiscardReview = async () => {
+    if (!currentReview) return
+
+    // Confirm before deleting
+    const confirmMessage = currentReview.reviewId
+      ? `Delete "${currentReview.paperTitle}"? This will permanently remove the review and all its data.`
+      : `Discard unsaved review "${currentReview.paperTitle}"?`
+
+    if (!window.confirm(confirmMessage)) {
+      return
+    }
+
+    // Delete the review from database (if it was saved)
+    if (currentReview.reviewId) {
+      console.log('Deleting review:', currentReview.reviewId)
+
+      const { error } = await supabase
+        .from('reviews')
+        .delete()
+        .eq('id', currentReview.reviewId)
+
+      if (error) {
+        console.error('Error deleting review:', error)
+        alert('Failed to delete review. Please try again.')
+        return
+      } else {
+        console.log('Review deleted successfully')
+      }
+    }
+
+    // Clear current review and show My Reviews modal
     setCurrentReview(null)
     setShowMyReviews(true)
   }
 
-  const handleShowMyReviews = () => {
+  const handleShowMyReviews = async () => {
+    // Save draft before showing My Reviews
+    if (currentReview && reviewComponentRef.current) {
+      console.log('Saving draft before showing My Reviews...')
+      try {
+        await reviewComponentRef.current.saveReviewDraft()
+        console.log('Draft saved, showing My Reviews')
+      } catch (error) {
+        console.error('Error saving draft:', error)
+        // Continue anyway - don't block user
+      }
+    }
     setShowMyReviews(true)
   }
 
@@ -189,6 +231,22 @@ function App() {
           onMyReviews={handleShowMyReviews}
         />
         <MyTables onBack={isStandaloneTable ? null : () => handleNavigate('main')} />
+        {showMyReviews && (
+          <MyReviews
+            onSelectReview={(reviewInfo) => {
+              setCurrentReview(reviewInfo)
+              setShowMyReviews(false)
+              // Navigate to main view when selecting a review
+              if (isStandaloneTable) {
+                window.location.href = '/'
+              } else {
+                handleNavigate('main')
+              }
+            }}
+            onCancel={() => setShowMyReviews(false)}
+            showCloseButton={currentReview !== null}
+          />
+        )}
       </div>
     )
   }
@@ -199,15 +257,18 @@ function App() {
         onSettings={() => handleNavigate('settings')}
         onMyReviews={handleShowMyReviews}
       />
-      <ReviewComponent
-        ref={reviewComponentRef}
-        currentReview={currentReview}
-        onDiscardReview={handleDiscardReview}
-      />
+      {currentReview && (
+        <ReviewComponent
+          ref={reviewComponentRef}
+          currentReview={currentReview}
+          onDiscardReview={handleDiscardReview}
+        />
+      )}
       {showMyReviews && (
         <MyReviews
           onSelectReview={handleSelectReview}
           onCancel={() => setShowMyReviews(false)}
+          showCloseButton={currentReview !== null}
         />
       )}
     </div>

@@ -507,24 +507,47 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
   // Initialize from currentReview prop
   useEffect(() => {
-    if (currentReview && !isInitialized) {
-      console.log('Initializing from currentReview prop:', currentReview);
+    if (!currentReview) {
+      // Reset ALL state when currentReview is cleared (e.g., Discard button)
+      console.log('Clearing review state - no currentReview');
+      setReviewText('');
+      setParagraphsWithIds([]);
+      setCommentsByParagraphId({});
+      setDismissedComments({});
+      setIsModified(false);
+      setOpenCommentBar(null);
+      setReviewId(null);
+      setPaperId(null);
+      setPaperTitle('');
+      setPaperConference('');
+      setIsInitialized(false);
+      return;
+    }
 
-      if (currentReview.isNewReview) {
-        // Creating new review
-        handlePaperInfoSubmit({
-          title: currentReview.paperTitle,
-          conference: currentReview.paperConference
-        });
-      } else {
-        // Loading existing review
-        setReviewId(currentReview.reviewId);
-        setPaperId(currentReview.paperId);
-        setPaperTitle(currentReview.paperTitle);
-        setPaperConference(currentReview.paperConference);
-        loadReviewData(currentReview.reviewId);
-        setIsInitialized(true);
-      }
+    console.log('Initializing from currentReview prop:', currentReview);
+
+    // Reset state when switching to a different review
+    setReviewText('');
+    setParagraphsWithIds([]);
+    setCommentsByParagraphId({});
+    setDismissedComments({});
+    setIsModified(false);
+    setOpenCommentBar(null);
+
+    if (currentReview.isNewReview) {
+      // Creating new review
+      handlePaperInfoSubmit({
+        title: currentReview.paperTitle,
+        conference: currentReview.paperConference
+      });
+    } else {
+      // Loading existing review
+      setReviewId(currentReview.reviewId);
+      setPaperId(currentReview.paperId);
+      setPaperTitle(currentReview.paperTitle);
+      setPaperConference(currentReview.paperConference);
+      loadReviewData(currentReview.reviewId);
+      setIsInitialized(true);
     }
   }, [currentReview]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -678,6 +701,11 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
       // Set current review text from draft_content (or empty if none)
       const draftContent = review.draft_content || '';
+      console.log('Draft content loaded:', {
+        length: draftContent.length,
+        wordCount: draftContent.trim().split(/\s+/).length,
+        preview: draftContent.substring(0, 100)
+      });
 
       // Build lookup maps for scored paragraphs (by paragraph_id)
       const scoredParagraphsMap = {};
@@ -737,13 +765,17 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       // Use smart matching: exact first, then fuzzy with high threshold
       const usedScoredParagraphs = new Set();
 
-      const paragraphsWithIds = currentParagraphTexts.map((text) => {
+      const paragraphsWithIds = currentParagraphTexts.map((text, index) => {
+        console.log(`\n=== Matching paragraph ${index} ===`);
+        console.log('Current text:', text.substring(0, 100));
+
         // Phase 1: Try exact content match first
         const exactMatch = review.paragraphs?.find(p =>
           !usedScoredParagraphs.has(p.paragraph_id) && p.content === text
         );
 
         if (exactMatch) {
+          console.log(`✓ Exact match found: paragraph_id=${exactMatch.paragraph_id}`);
           usedScoredParagraphs.add(exactMatch.paragraph_id);
           return {
             id: exactMatch.paragraph_id,
@@ -752,7 +784,10 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
           };
         }
 
-        // Phase 2: Try fuzzy match with high threshold (>80% word overlap)
+        console.log('No exact match, trying fuzzy...');
+
+        // Phase 2: Try fuzzy match with lower threshold (>70% word overlap)
+        // This catches minor edits like single character changes
         let bestMatch = null;
         let bestScore = 0;
 
@@ -764,13 +799,17 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
           const overlap = [...words1].filter(w => words2.has(w)).length;
           const score = overlap / Math.max(words1.size, words2.size);
 
-          if (score > bestScore && score > 0.8) {  // 80% threshold
+          console.log(`  Checking against paragraph_id=${p.paragraph_id}: score=${score.toFixed(3)} (${overlap}/${Math.max(words1.size, words2.size)})`);
+          console.log(`    DB text: ${p.content.substring(0, 100)}`);
+
+          if (score > bestScore && score > 0.7) {  // 70% threshold
             bestScore = score;
             bestMatch = p;
           }
         });
 
         if (bestMatch) {
+          console.log(`✓ Fuzzy match found: paragraph_id=${bestMatch.paragraph_id}, score=${bestScore.toFixed(3)}`);
           usedScoredParagraphs.add(bestMatch.paragraph_id);
           return {
             id: bestMatch.paragraph_id,
@@ -780,8 +819,10 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
         }
 
         // No match - treat as new paragraph
+        const newId = nextParagraphIdRef.current++;
+        console.log(`✗ No match found, creating new paragraph with id=${newId}`);
         return {
-          id: nextParagraphIdRef.current++,
+          id: newId,
           originalContent: '', // Empty = new paragraph
           currentContent: text
         };
@@ -1123,9 +1164,8 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
   };
 
   const handleDiscard = () => {
-    if (window.confirm('Are you sure you want to discard this review? This action cannot be undone.')) {
-      onDiscardReview?.();
-    }
+    // Confirmation handled in App.jsx's handleDiscardReview
+    onDiscardReview?.();
   };
 
   const truncatePaperName = (name) => {
