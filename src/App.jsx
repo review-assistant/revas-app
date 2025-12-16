@@ -4,8 +4,9 @@ import AuthComponent from './AuthComponent'
 import ReviewComponent from './ReviewComponent'
 import AccountSettings from './AccountSettings'
 import MyTables from './MyTables'
+import MyReviews from './components/MyReviews'
 
-function AccountDropdown({ onSettings }) {
+function AccountDropdown({ onSettings, onMyReviews }) {
   const [isOpen, setIsOpen] = useState(false)
   const { user, signOut } = useAuth()
   const dropdownRef = useRef(null)
@@ -57,6 +58,18 @@ function AccountDropdown({ onSettings }) {
           <div className="py-1">
             <button
               onClick={() => {
+                onMyReviews()
+                setIsOpen(false)
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              My Reviews
+            </button>
+            <button
+              onClick={() => {
                 onSettings()
                 setIsOpen(false)
               }}
@@ -101,6 +114,8 @@ function App() {
   const { user, loading } = useAuth()
   const [currentView, setCurrentView] = useState('main') // 'main' | 'settings' | 'tables'
   const [isStandaloneTable, setIsStandaloneTable] = useState(false)
+  const [showMyReviews, setShowMyReviews] = useState(false)
+  const [currentReview, setCurrentReview] = useState(null) // { reviewId, paperId, paperTitle, paperConference }
   const reviewComponentRef = useRef(null)
 
   // Check URL parameters on mount to handle standalone views
@@ -113,6 +128,27 @@ function App() {
       setIsStandaloneTable(true)
     }
   }, [])
+
+  // Show My Reviews modal when user signs in without a review
+  useEffect(() => {
+    if (user && !currentReview && currentView === 'main') {
+      setShowMyReviews(true)
+    }
+  }, [user, currentReview, currentView])
+
+  const handleSelectReview = (reviewInfo) => {
+    setCurrentReview(reviewInfo)
+    setShowMyReviews(false)
+  }
+
+  const handleDiscardReview = () => {
+    setCurrentReview(null)
+    setShowMyReviews(true)
+  }
+
+  const handleShowMyReviews = () => {
+    setShowMyReviews(true)
+  }
 
   // Save draft before navigating away from main view
   const handleNavigate = useCallback(async (view) => {
@@ -148,7 +184,10 @@ function App() {
   if (currentView === 'tables') {
     return (
       <div className="relative">
-        <AccountDropdown onSettings={() => handleNavigate('settings')} />
+        <AccountDropdown
+          onSettings={() => handleNavigate('settings')}
+          onMyReviews={handleShowMyReviews}
+        />
         <MyTables onBack={isStandaloneTable ? null : () => handleNavigate('main')} />
       </div>
     )
@@ -156,8 +195,21 @@ function App() {
 
   return (
     <div className="relative">
-      <AccountDropdown onSettings={() => handleNavigate('settings')} />
-      <ReviewComponent ref={reviewComponentRef} />
+      <AccountDropdown
+        onSettings={() => handleNavigate('settings')}
+        onMyReviews={handleShowMyReviews}
+      />
+      <ReviewComponent
+        ref={reviewComponentRef}
+        currentReview={currentReview}
+        onDiscardReview={handleDiscardReview}
+      />
+      {showMyReviews && (
+        <MyReviews
+          onSelectReview={handleSelectReview}
+          onCancel={() => setShowMyReviews(false)}
+        />
+      )}
     </div>
   )
 }

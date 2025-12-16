@@ -26,7 +26,7 @@ const scoreToSeverity = (score) => {
   return 'none';
 };
 
-const ReviewComponent = forwardRef((props, ref) => {
+const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }, ref) => {
   const { signOut } = useAuth();
   const [reviewText, setReviewText] = useState('');
   const [originalText, setOriginalText] = useState('');
@@ -504,12 +504,28 @@ const ReviewComponent = forwardRef((props, ref) => {
     }
   }, [isDragging, reviewTextWidth]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialize review on component mount
+  // Initialize from currentReview prop
   useEffect(() => {
-    if (!isInitialized) {
-      initializeReview();
+    if (currentReview && !isInitialized) {
+      console.log('Initializing from currentReview prop:', currentReview);
+
+      if (currentReview.isNewReview) {
+        // Creating new review
+        handlePaperInfoSubmit({
+          title: currentReview.paperTitle,
+          conference: currentReview.paperConference
+        });
+      } else {
+        // Loading existing review
+        setReviewId(currentReview.reviewId);
+        setPaperId(currentReview.paperId);
+        setPaperTitle(currentReview.paperTitle);
+        setPaperConference(currentReview.paperConference);
+        loadReviewData(currentReview.reviewId);
+        setIsInitialized(true);
+      }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentReview]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Autosave: start timer on keypress if not already running
   const autosaveTimerRef = useRef(null);
@@ -1105,6 +1121,18 @@ const ReviewComponent = forwardRef((props, ref) => {
     console.log('Request cancelled by user (invalidated request, now expecting #' + currentRequestIdRef.current + ')');
   };
 
+  const handleDiscard = () => {
+    if (window.confirm('Are you sure you want to discard this review? This action cannot be undone.')) {
+      onDiscardReview?.();
+    }
+  };
+
+  const truncatePaperName = (name) => {
+    if (!name) return 'Untitled Review';
+    if (name.length <= 20) return name;
+    return name.substring(0, 20) + '...';
+  };
+
   const handleCommentBarClick = (paragraphId) => {
     if (openCommentBar === paragraphId) {
       setOpenCommentBar(null);
@@ -1366,15 +1394,24 @@ const ReviewComponent = forwardRef((props, ref) => {
         </button>
       )}
 
-      {/* Header */}
-      <p className="absolute font-normal text-[20px] text-black top-[15px] left-[22px] w-[1036px]">
-        Edit your review:
+      {/* Header with Paper Name and Discard Button */}
+      <div className="absolute top-[15px] left-[22px] flex items-center gap-3">
+        <p className="font-normal text-[20px] text-black">
+          {truncatePaperName(currentReview?.paperTitle)}
+        </p>
+        <button
+          onClick={handleDiscard}
+          className="px-3 py-1 text-[14px] bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+          title={currentReview?.paperTitle || 'Discard this review'}
+        >
+          Discard
+        </button>
         {savingStatus === 'saving' && (
           <span className="ml-3 text-[12px] text-gray-400 italic font-normal">
             saving...
           </span>
         )}
-      </p>
+      </div>
 
       {/* Severity Statistics Bar - Centered */}
       <div className="absolute font-normal text-[12px] text-black top-[21px] left-1/2 -translate-x-1/2 flex gap-[15px] items-center">
