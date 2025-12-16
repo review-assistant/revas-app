@@ -717,25 +717,57 @@ const ReviewComponent = forwardRef((props, ref) => {
       const currentParagraphTexts = draftContent.split('\n\n').filter(p => p.trim().length > 0);
 
       // Create paragraphsWithIds by matching current text to scored paragraphs
-      const paragraphsWithIds = currentParagraphTexts.map((text, index) => {
-        // Try to find matching scored paragraph by index (best effort)
-        const scoredParagraph = review.paragraphs?.[index];
+      // Use smart matching: exact first, then fuzzy with high threshold
+      const usedScoredParagraphs = new Set();
 
-        if (scoredParagraph) {
-          // Found scored version - use its ID and originalContent
+      const paragraphsWithIds = currentParagraphTexts.map((text) => {
+        // Phase 1: Try exact content match first
+        const exactMatch = review.paragraphs?.find(p =>
+          !usedScoredParagraphs.has(p.paragraph_id) && p.content === text
+        );
+
+        if (exactMatch) {
+          usedScoredParagraphs.add(exactMatch.paragraph_id);
           return {
-            id: scoredParagraph.paragraph_id,
-            originalContent: scoredParagraph.content || '',
-            currentContent: text
-          };
-        } else {
-          // New paragraph added after last UPDATE - no scored version yet
-          return {
-            id: nextParagraphIdRef.current++,
-            originalContent: '', // Empty = new paragraph
+            id: exactMatch.paragraph_id,
+            originalContent: exactMatch.content || '',
             currentContent: text
           };
         }
+
+        // Phase 2: Try fuzzy match with high threshold (>80% word overlap)
+        let bestMatch = null;
+        let bestScore = 0;
+
+        review.paragraphs?.forEach(p => {
+          if (usedScoredParagraphs.has(p.paragraph_id)) return;
+
+          const words1 = new Set(text.toLowerCase().split(/\s+/));
+          const words2 = new Set(p.content.toLowerCase().split(/\s+/));
+          const overlap = [...words1].filter(w => words2.has(w)).length;
+          const score = overlap / Math.max(words1.size, words2.size);
+
+          if (score > bestScore && score > 0.8) {  // 80% threshold
+            bestScore = score;
+            bestMatch = p;
+          }
+        });
+
+        if (bestMatch) {
+          usedScoredParagraphs.add(bestMatch.paragraph_id);
+          return {
+            id: bestMatch.paragraph_id,
+            originalContent: bestMatch.content || '',
+            currentContent: text
+          };
+        }
+
+        // No match - treat as new paragraph
+        return {
+          id: nextParagraphIdRef.current++,
+          originalContent: '', // Empty = new paragraph
+          currentContent: text
+        };
       });
 
       console.log('Review data loaded successfully', {
@@ -1466,14 +1498,39 @@ const ReviewComponent = forwardRef((props, ref) => {
               className="absolute top-[10px] left-[20px] right-[20px] pointer-events-none opacity-0 font-normal text-[12px] text-black leading-normal whitespace-pre-wrap"
               aria-hidden="true"
             >
-              {paragraphsWithIds.map((paragraph, index) => (
-                <React.Fragment key={paragraph.id}>
-                  {index > 0 && <div className="block">&nbsp;</div>}
-                  <div data-paragraph-id={paragraph.id} className="block">
-                    {paragraph.currentContent}
-                  </div>
-                </React.Fragment>
-              ))}
+              {(() => {
+                const blocks = parseTextBlocks(reviewText);
+                let paragraphCount = 0;
+
+                // Debug: check for mismatch between blocks and paragraphsWithIds
+                const numParagraphBlocks = blocks.filter(b => b.type === 'paragraph').length;
+                if (numParagraphBlocks !== paragraphsWithIds.length) {
+                  console.warn('Paragraph count mismatch:', {
+                    blocksCount: numParagraphBlocks,
+                    paragraphsWithIdsCount: paragraphsWithIds.length,
+                    blocks: blocks.filter(b => b.type === 'paragraph').map(b => b.content.substring(0, 30) + '...'),
+                    paragraphsWithIds: paragraphsWithIds.map(p => ({
+                      id: p.id,
+                      preview: p.currentContent.substring(0, 30) + '...'
+                    }))
+                  });
+                }
+
+                return blocks.map((block, index) => {
+                  if (block.type === 'blank') {
+                    return <div key={`blank-${index}`} className="block">&nbsp;</div>;
+                  } else {
+                    // Match by position in sequence, not by content
+                    const paragraph = paragraphsWithIds[paragraphCount];
+                    paragraphCount++;
+                    return (
+                      <div key={`para-${index}`} data-paragraph-id={paragraph?.id} className="block">
+                        {block.content}
+                      </div>
+                    );
+                  }
+                });
+              })()}
             </div>
 
             {/* Comment Bars */}
