@@ -191,29 +191,39 @@ export default function MyReviews({ onSelectReview, onCancel }) {
 
         {/* Create New Review Section */}
         <div className="border-t pt-4">
-          <div className="flex gap-3 items-center p-2 bg-gray-50 rounded-lg mb-4">
-            <input
-              type="text"
-              value={newPaperTitle}
-              onChange={(e) => {
-                setNewPaperTitle(e.target.value)
-                setSelectedReviewId(null)
-              }}
-              onFocus={() => setSelectedReviewId(null)}
-              placeholder={getPlaceholderTitle()}
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="text"
-              value={newPaperConference}
-              onChange={(e) => {
-                setNewPaperConference(e.target.value)
-                setSelectedReviewId(null)
-              }}
-              onFocus={() => setSelectedReviewId(null)}
-              placeholder={getPlaceholderConference()}
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div className="flex gap-3 items-start p-2 bg-gray-50 rounded-lg mb-4">
+            <div className="flex-1">
+              <label className="block text-xs text-gray-500 mb-1">
+                Paper or Review name
+              </label>
+              <input
+                type="text"
+                value={newPaperTitle}
+                onChange={(e) => {
+                  setNewPaperTitle(e.target.value)
+                  setSelectedReviewId(null)
+                }}
+                onFocus={() => setSelectedReviewId(null)}
+                placeholder={getPlaceholderTitle()}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-500 mb-1">
+                Conf or Journal
+              </label>
+              <input
+                type="text"
+                value={newPaperConference}
+                onChange={(e) => {
+                  setNewPaperConference(e.target.value)
+                  setSelectedReviewId(null)
+                }}
+                onFocus={() => setSelectedReviewId(null)}
+                placeholder={getPlaceholderConference()}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
         </div>
 

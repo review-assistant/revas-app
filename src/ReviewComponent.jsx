@@ -344,6 +344,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
   // Update paragraph positions when text changes (including blank line insertions) or on scroll
   // Using useLayoutEffect to ensure DOM is measured after updates but before paint
+  // Also recalculate when comments arrive (commentsByParagraphId changes) to ensure bars render
   useLayoutEffect(() => {
     if (hiddenTextRef.current) {
       const elements = hiddenTextRef.current.querySelectorAll('[data-paragraph-id]');
@@ -363,7 +364,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
       setParagraphPositions(positions);
     }
-  }, [reviewText, scrollTop, resizeCounter, reviewTextWidth]);
+  }, [reviewText, scrollTop, resizeCounter, reviewTextWidth, commentsByParagraphId]);
 
   // Auto-resize textarea (when text changes or width changes)
   useEffect(() => {
