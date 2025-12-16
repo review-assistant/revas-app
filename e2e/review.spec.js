@@ -10,7 +10,7 @@ test.describe('Review Component', () => {
   const testEmail = `review-test-${timestamp}@example.com`
   const testPassword = 'testpass123'
 
-  // Helper to login
+  // Helper to login and create/select a review
   async function loginUser(page) {
     await page.goto('/')
     await page.click('text=Sign up')
@@ -22,6 +22,16 @@ test.describe('Review Component', () => {
     await page.click('button:has-text("Sign up")')
 
     await expect(page.locator(`text=${testEmail}`)).toBeVisible({ timeout: 10000 })
+
+    // After login, My Reviews modal should appear
+    await expect(page.locator('text=My Reviews')).toBeVisible({ timeout: 5000 })
+
+    // Create a new review by clicking the create button
+    // The button will say "Create Review-1" for first review
+    await page.click('button:has-text("Create")')
+
+    // Wait for review editor to appear
+    await expect(page.locator('textarea')).toBeVisible({ timeout: 5000 })
   }
 
   test.beforeEach(async ({ page }) => {
@@ -29,8 +39,7 @@ test.describe('Review Component', () => {
   })
 
   test('@smoke Load review and update comments', async ({ page }) => {
-    // Verify main components are visible
-    await expect(page.locator('text=Edit your review:')).toBeVisible()
+    // Verify main components are visible (textarea already verified in loginUser)
     await expect(page.locator('textarea')).toBeVisible()
 
     // Use more specific selector for UPDATE button
