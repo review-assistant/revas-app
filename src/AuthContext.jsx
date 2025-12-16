@@ -28,6 +28,14 @@ export const AuthProvider = ({ children }) => {
       if (data) {
         setProfile(data)
       }
+
+      // If profile doesn't exist (e.g., after database reset), sign out
+      if (error && error.code === 'PGRST116') {
+        console.warn('Profile not found - user may have been deleted after database reset. Signing out.')
+        await supabase.auth.signOut()
+        return
+      }
+
       if (error) {
         console.error('Error loading profile:', error)
       }

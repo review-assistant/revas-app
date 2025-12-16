@@ -250,7 +250,7 @@ describe('Database Integration Tests', () => {
       expect(review.is_locked).toBe(false)
     }, 10000)
 
-    testFn('save_review_content saves encrypted content', async () => {
+    testFn('save_draft saves encrypted content', async () => {
       const { data: paperId } = await supabase1.rpc('get_or_create_paper', {
         p_title: 'Content Test Paper',
         p_conference: 'Test 2025'
@@ -260,19 +260,38 @@ describe('Database Integration Tests', () => {
         p_paper_id: paperId
       })
 
-      const reviewContent = 'This is my full review text.'
-      const paragraphs = [
-        { paragraph_id: 1, content: 'First paragraph of review.', is_deleted: false },
-        { paragraph_id: 2, content: 'Second paragraph of review.', is_deleted: false }
-      ]
+      const reviewContent = 'This is my full review text.\n\nFirst paragraph of review.\n\nSecond paragraph of review.'
 
-      const { error } = await supabase1.rpc('save_review_content', {
+      // Save draft (autosave)
+      const { error } = await supabase1.rpc('save_draft', {
         p_review_id: reviewId,
-        p_content: reviewContent,
-        p_paragraphs: paragraphs
+        p_content: reviewContent
       })
 
       expect(error).toBeNull()
+
+      // Verify draft was saved (but no review_items yet - those are created on UPDATE)
+      const { data: review } = await supabase1
+        .from('reviews')
+        .select('draft_content')
+        .eq('id', reviewId)
+        .single()
+
+      expect(review.draft_content).toBeTruthy() // Encrypted, so just check it exists
+
+      // Create version from draft (simulates UPDATE button)
+      const paragraphs = [
+        { paragraph_id: 0, content: 'First paragraph of review.' },
+        { paragraph_id: 1, content: 'Second paragraph of review.' }
+      ]
+
+      const { data: version, error: versionError } = await supabase1.rpc('create_version_from_draft', {
+        p_review_id: reviewId,
+        p_paragraphs: paragraphs
+      })
+
+      expect(versionError).toBeNull()
+      expect(version).toBe(1)
 
       // Verify review items were created
       const { data: items } = await supabase1
@@ -282,6 +301,7 @@ describe('Database Integration Tests', () => {
 
       expect(items).toHaveLength(2)
       expect(items.every(item => item.content_encrypted)).toBe(true)
+      expect(items.every(item => item.version === 1)).toBe(true)
     }, 10000)
 
     testFn('save_review_scores saves scores correctly', async () => {
@@ -294,19 +314,24 @@ describe('Database Integration Tests', () => {
         p_paper_id: paperId
       })
 
-      // Save content first
-      await supabase1.rpc('save_review_content', {
+      // Save draft first
+      await supabase1.rpc('save_draft', {
         p_review_id: reviewId,
-        p_content: 'Test review',
+        p_content: 'Test review\n\nTest paragraph'
+      })
+
+      // Create version from draft (simulates UPDATE button)
+      await supabase1.rpc('create_version_from_draft', {
+        p_review_id: reviewId,
         p_paragraphs: [
-          { paragraph_id: 1, content: 'Test paragraph', is_deleted: false }
+          { paragraph_id: 0, content: 'Test paragraph' }
         ]
       })
 
       // Save scores
       const scores = [
         {
-          paragraph_id: 1,
+          paragraph_id: 0,
           dimension: 'Actionability',
           score: 4,
           previous_score: null,
@@ -314,7 +339,7 @@ describe('Database Integration Tests', () => {
           comment: 'Good actionable feedback'
         },
         {
-          paragraph_id: 1,
+          paragraph_id: 0,
           dimension: 'Helpfulness',
           score: 5,
           previous_score: null,
@@ -352,19 +377,24 @@ describe('Database Integration Tests', () => {
         p_paper_id: paperId
       })
 
-      // Save content first
-      await supabase1.rpc('save_review_content', {
+      // Save draft first
+      await supabase1.rpc('save_draft', {
         p_review_id: reviewId,
-        p_content: 'Test review',
+        p_content: 'Test review\n\nTest paragraph'
+      })
+
+      // Create version from draft
+      await supabase1.rpc('create_version_from_draft', {
+        p_review_id: reviewId,
         p_paragraphs: [
-          { paragraph_id: 1, content: 'Test paragraph', is_deleted: false }
+          { paragraph_id: 0, content: 'Test paragraph' }
         ]
       })
 
       // Track view
       const { error: viewError } = await supabase1.rpc('track_interaction', {
         p_review_id: reviewId,
-        p_paragraph_id: 1,
+        p_paragraph_id: 0,
         p_dimension: 'Actionability',
         p_interaction_type: 'view'
       })
@@ -374,7 +404,7 @@ describe('Database Integration Tests', () => {
       // Track dismissal
       const { error: dismissError } = await supabase1.rpc('track_interaction', {
         p_review_id: reviewId,
-        p_paragraph_id: 1,
+        p_paragraph_id: 0,
         p_dimension: 'Helpfulness',
         p_interaction_type: 'dismiss'
       })
@@ -410,11 +440,17 @@ describe('Database Integration Tests', () => {
         p_paper_id: paperId
       })
 
-      await supabase1.rpc('save_review_content', {
+      // Save draft
+      await supabase1.rpc('save_draft', {
         p_review_id: reviewId,
-        p_content: 'Test review',
+        p_content: 'Test review\n\nTest paragraph'
+      })
+
+      // Create version
+      await supabase1.rpc('create_version_from_draft', {
+        p_review_id: reviewId,
         p_paragraphs: [
-          { paragraph_id: 1, content: 'Test paragraph', is_deleted: false }
+          { paragraph_id: 0, content: 'Test paragraph' }
         ]
       })
 
@@ -462,11 +498,17 @@ describe('Database Integration Tests', () => {
         p_paper_id: paperId
       })
 
-      await supabase1.rpc('save_review_content', {
+      // Save draft
+      await supabase1.rpc('save_draft', {
         p_review_id: reviewId,
-        p_content: 'My review content',
+        p_content: 'My review content\n\nTest paragraph'
+      })
+
+      // Create version
+      await supabase1.rpc('create_version_from_draft', {
+        p_review_id: reviewId,
         p_paragraphs: [
-          { paragraph_id: 1, content: 'Test paragraph', is_deleted: false }
+          { paragraph_id: 0, content: 'Test paragraph' }
         ]
       })
 
@@ -482,9 +524,9 @@ describe('Database Integration Tests', () => {
       expect(exportData.reviews.length).toBeGreaterThan(0)
       expect(exportData.export_date).toBeTruthy()
 
-      // Verify decrypted content is included
+      // Verify decrypted content is included (draft content in Option A)
       const review = exportData.reviews.find(r => r.id === reviewId)
-      expect(review.content).toBe('My review content')
+      expect(review.draft_content).toBe('My review content\n\nTest paragraph')
       expect(review.review_items[0].content).toBe('Test paragraph')
     }, 10000)
 

@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, forwardRef, useImperativeHandle } from 'react';
 import { getComments } from './commentsClient.js';
 import { supabase } from './supabaseClient.js';
+import { useAuth } from './AuthContext.jsx';
 import PaperInfoDialog from './components/PaperInfoDialog.jsx';
 
 // Now using commentsClient for API calls
@@ -25,7 +26,8 @@ const scoreToSeverity = (score) => {
   return 'none';
 };
 
-export default function ReviewComponent() {
+const ReviewComponent = forwardRef((props, ref) => {
+  const { signOut } = useAuth();
   const [reviewText, setReviewText] = useState('');
   const [originalText, setOriginalText] = useState('');
   const [isModified, setIsModified] = useState(false)
@@ -39,9 +41,12 @@ export default function ReviewComponent() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0); // Progress percentage (0-100)
   const [loadingWord, setLoadingWord] = useState('Loading');
+  const [isUpdating, setIsUpdating] = useState(false); // Track UPDATE in progress
 
   // Stable paragraph tracking: {id, originalContent, currentContent}
   const [paragraphsWithIds, setParagraphsWithIds] = useState([]);
+  const paragraphsWithIdsRef = useRef([]); // Ref to avoid closure issues in timer
+  const reviewTextRef = useRef(''); // Ref to avoid closure issues in unmount
   const nextParagraphIdRef = useRef(0);
   const [commentsByParagraphId, setCommentsByParagraphId] = useState({});
 
@@ -73,6 +78,15 @@ export default function ReviewComponent() {
   const currentRequestIdRef = useRef(0);
   const commentTextRef = useRef(null);
 
+  // Keep ref in sync with state to avoid closure issues
+  useEffect(() => {
+    paragraphsWithIdsRef.current = paragraphsWithIds;
+  }, [paragraphsWithIds]);
+
+  useEffect(() => {
+    reviewTextRef.current = reviewText;
+  }, [reviewText]);
+
   // Initialize paragraph IDs on first render
   useEffect(() => {
     const initialParagraphTexts = getParagraphs(reviewText);
@@ -102,7 +116,25 @@ export default function ReviewComponent() {
     const unmatchedSaved = [...savedParagraphs];
     const unmatchedNewIndices = newParagraphTexts.map((_, i) => i);
 
-    // Phase 1: Exact matches
+    // Phase 0: Exact match against originalContent (scored versions)
+    // This ensures pasting back the original scored text restores IDs
+    for (let i = unmatchedNewIndices.length - 1; i >= 0; i--) {
+      const newIndex = unmatchedNewIndices[i];
+      const newText = newParagraphTexts[newIndex];
+      const savedIndex = unmatchedSaved.findIndex(s => s.originalContent && s.originalContent === newText);
+
+      if (savedIndex !== -1) {
+        matched.push({
+          newIndex: newIndex,
+          savedParagraph: unmatchedSaved[savedIndex],
+          newText: newText
+        });
+        unmatchedSaved.splice(savedIndex, 1);
+        unmatchedNewIndices.splice(i, 1);
+      }
+    }
+
+    // Phase 1: Exact match against currentContent
     for (let i = unmatchedNewIndices.length - 1; i >= 0; i--) {
       const newIndex = unmatchedNewIndices[i];
       const newText = newParagraphTexts[newIndex];
@@ -157,21 +189,41 @@ export default function ReviewComponent() {
   // Update paragraph IDs when text changes
   useEffect(() => {
     const newParagraphTexts = getParagraphs(reviewText);
+    console.log('Paragraph update effect:', {
+      reviewTextLength: reviewText.length,
+      newParagraphCount: newParagraphTexts.length,
+      currentParagraphsWithIds: paragraphsWithIds.length,
+      newParagraphTexts: newParagraphTexts
+    });
 
     // If starting from empty, create all new paragraphs
     if (paragraphsWithIds.length === 0 && newParagraphTexts.length > 0) {
+      console.log('Creating new paragraphs from empty state');
       const newParagraphs = newParagraphTexts.map((content, index) => ({
         id: nextParagraphIdRef.current++,
         originalContent: '', // Empty to indicate new paragraph
         currentContent: content
       }));
+      console.log('New paragraphs created:', newParagraphs);
       setParagraphsWithIds(newParagraphs);
       return;
     }
 
-    // If no paragraphs exist anymore, reset
+    // If no paragraphs exist anymore, keep scored paragraph data but clear current content
+    // This allows matching when text is pasted back
     if (newParagraphTexts.length === 0) {
-      setParagraphsWithIds([]);
+      console.log('Text cleared - preserving scored paragraph data for matching');
+      if (paragraphsWithIds.some(p => p.originalContent)) {
+        // Keep paragraphs that have scored versions (originalContent)
+        // Set currentContent to empty
+        const preserved = paragraphsWithIds
+          .filter(p => p.originalContent)
+          .map(p => ({ ...p, currentContent: '' }));
+        setParagraphsWithIds(preserved);
+      } else {
+        // No scored versions exist - safe to clear completely
+        setParagraphsWithIds([]);
+      }
       return;
     }
 
@@ -463,7 +515,12 @@ export default function ReviewComponent() {
   const autosaveTimerRef = useRef(null);
 
   useEffect(() => {
-    if (!reviewId || !isModified || isLocked) return;
+    console.log('Autosave effect triggered:', { reviewId, isModified, isLocked, hasTimer: !!autosaveTimerRef.current });
+
+    if (!reviewId || !isModified || isLocked) {
+      console.log('Autosave: conditions not met, skipping');
+      return;
+    }
 
     // Only start timer if one isn't already running
     if (!autosaveTimerRef.current) {
@@ -473,6 +530,8 @@ export default function ReviewComponent() {
         saveReviewDraft();
         autosaveTimerRef.current = null;
       }, 30000); // 30 seconds
+    } else {
+      console.log('Autosave: timer already running, not starting new one');
     }
 
     return () => {
@@ -491,8 +550,44 @@ export default function ReviewComponent() {
         return;
       }
 
-      // Show paper info dialog on first use
+      // Check if user has existing reviews
+      const { data: existingReviews, error: reviewsError } = await supabase
+        .from('reviews')
+        .select(`
+          id,
+          paper_id,
+          papers (
+            title,
+            conference_or_journal
+          )
+        `)
+        .eq('reviewer_user_id', session.user.id)
+        .eq('is_locked', false)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (reviewsError) {
+        console.error('Error checking for existing reviews:', reviewsError);
+      }
+
+      // If user has an existing review, load it directly
+      if (existingReviews && existingReviews.length > 0) {
+        const review = existingReviews[0];
+        console.log('Loading existing review:', review.id);
+
+        setReviewId(review.id);
+        setPaperId(review.paper_id);
+        setPaperTitle(review.papers?.title || '');
+        setPaperConference(review.papers?.conference_or_journal || '');
+
+        await loadReviewData(review.id);
+        setIsInitialized(true);
+        return;
+      }
+
+      // No existing reviews - show paper info dialog
       setShowPaperDialog(true);
+      setIsInitialized(true);
     } catch (error) {
       console.error('Error initializing review:', error);
       setIsInitialized(true);
@@ -532,6 +627,14 @@ export default function ReviewComponent() {
       setIsInitialized(true);
     } catch (error) {
       console.error('Error creating/loading review:', error);
+
+      // If user doesn't exist in database (after reset), sign them out
+      if (error?.code === '23503' && error?.message?.includes('violates foreign key constraint')) {
+        console.warn('User not found in database - likely after database reset. Signing out.');
+        await signOut();
+        return;
+      }
+
       setIsInitialized(true);
     }
   };
@@ -539,13 +642,15 @@ export default function ReviewComponent() {
   // Load review data from database
   const loadReviewData = async (loadReviewId) => {
     try {
-      // Use RPC function to fetch and decrypt review content
+      // Use RPC function to fetch draft and latest scored version
       const { data: review, error: reviewError } = await supabase
-        .rpc('load_review_content', { p_review_id: loadReviewId });
+        .rpc('load_review_with_draft', { p_review_id: loadReviewId });
 
       if (reviewError) throw reviewError;
 
-      if (!review || !review.review_items || review.review_items.length === 0) {
+      console.log('loadReviewData: review loaded from DB:', review);
+
+      if (!review) {
         // No existing review content, start fresh
         console.log('No existing review content found');
         return;
@@ -554,78 +659,108 @@ export default function ReviewComponent() {
       // Check if review is locked
       setIsLocked(review.is_locked);
 
-      // Reconstruct paragraphs from decrypted review_items
-      const paragraphTexts = [];
-      const paragraphsWithIds = [];
+      // Set current review text from draft_content (or empty if none)
+      const draftContent = review.draft_content || '';
+
+      // Build lookup maps for scored paragraphs (by paragraph_id)
+      const scoredParagraphsMap = {};
       const commentsData = {};
       const dismissedCommentsData = {};
 
-      review.review_items.forEach(item => {
-        const paragraphId = item.paragraph_id;
-        const decryptedContent = item.content || '';
-        const hasComments = item.scores && Object.keys(item.scores).length > 0;
+      if (review.paragraphs && review.paragraphs.length > 0) {
+        review.paragraphs.forEach((item) => {
+          const paragraphId = item.paragraph_id;
 
-        // Add to paragraphs array
-        paragraphTexts.push(decryptedContent);
+          // Store scored paragraph content for later matching
+          scoredParagraphsMap[paragraphId] = {
+            originalContent: item.content || '',
+            paragraphId: paragraphId
+          };
 
-        // If paragraph has no comments, treat as "in progress" - set originalContent to empty
-        // so isModified will be true and UPDATE will fetch comments
-        paragraphsWithIds.push({
-          id: paragraphId,
-          originalContent: hasComments ? decryptedContent : '',
-          currentContent: decryptedContent
+          // Reconstruct comments if they exist
+          const hasComments = item.scores && Object.keys(item.scores).length > 0;
+          if (hasComments) {
+            commentsData[paragraphId] = [];
+            Object.entries(item.scores).forEach(([dimension, scoreData]) => {
+              const severity = scoreToSeverity(scoreData.score);
+              commentsData[paragraphId].push({
+                severity: severity,
+                label: dimension,
+                text: scoreData.comment || '',
+                score: scoreData.score
+              });
+            });
+          }
+
+          // Reconstruct dismissed comments if they exist
+          if (item.interactions) {
+            Object.entries(item.interactions).forEach(([dimension, interaction]) => {
+              if (interaction.comment_dismissed) {
+                if (!dismissedCommentsData[paragraphId]) {
+                  dismissedCommentsData[paragraphId] = [];
+                }
+                dismissedCommentsData[paragraphId].push(dimension);
+              }
+            });
+          }
         });
 
-        // Reconstruct comments if they exist
-        if (hasComments) {
-          commentsData[paragraphId] = [];
-          Object.entries(item.scores).forEach(([dimension, scoreData]) => {
-            const severity = scoreToSeverity(scoreData.score);
-            commentsData[paragraphId].push({
-              severity: severity,
-              label: dimension,
-              text: scoreData.comment || '',
-              score: scoreData.score
-            });
-          });
-        }
-
-        // Reconstruct dismissed comments if they exist
-        if (item.interactions) {
-          Object.entries(item.interactions).forEach(([dimension, interaction]) => {
-            if (interaction.comment_dismissed) {
-              if (!dismissedCommentsData[paragraphId]) {
-                dismissedCommentsData[paragraphId] = [];
-              }
-              dismissedCommentsData[paragraphId].push(dimension);
-            }
-          });
-        }
-      });
-
-      // Update state with loaded content
-      if (paragraphTexts.length > 0) {
-        setReviewText(paragraphTexts.join('\n\n'));
-        setParagraphsWithIds(paragraphsWithIds);
-        setCommentsByParagraphId(commentsData);
-        setDismissedComments(dismissedCommentsData);
-        nextParagraphIdRef.current = Math.max(...paragraphsWithIds.map(p => p.id)) + 1;
-
-        // Set isModified to true if any paragraph has no comments (in progress)
-        const hasInProgressParagraphs = paragraphsWithIds.some(p => p.originalContent === '');
-        setIsModified(hasInProgressParagraphs);
+        // Update next paragraph ID to be higher than any existing
+        const maxParagraphId = Math.max(...review.paragraphs.map(p => p.paragraph_id));
+        nextParagraphIdRef.current = maxParagraphId + 1;
+      } else {
+        // No scored paragraphs - reset counter to 0 for consistent IDs
+        nextParagraphIdRef.current = 0;
       }
 
+      // Parse current draft text into paragraphs
+      const currentParagraphTexts = draftContent.split('\n\n').filter(p => p.trim().length > 0);
+
+      // Create paragraphsWithIds by matching current text to scored paragraphs
+      const paragraphsWithIds = currentParagraphTexts.map((text, index) => {
+        // Try to find matching scored paragraph by index (best effort)
+        const scoredParagraph = review.paragraphs?.[index];
+
+        if (scoredParagraph) {
+          // Found scored version - use its ID and originalContent
+          return {
+            id: scoredParagraph.paragraph_id,
+            originalContent: scoredParagraph.content || '',
+            currentContent: text
+          };
+        } else {
+          // New paragraph added after last UPDATE - no scored version yet
+          return {
+            id: nextParagraphIdRef.current++,
+            originalContent: '', // Empty = new paragraph
+            currentContent: text
+          };
+        }
+      });
+
       console.log('Review data loaded successfully', {
-        paragraphs: paragraphsWithIds.length,
+        draftLength: draftContent.length,
+        scoredParagraphs: review.paragraphs?.length || 0,
+        currentParagraphs: paragraphsWithIds.length,
         comments: Object.keys(commentsData).length
       });
+
+      // Set all state at once
+      setReviewText(draftContent);
+      setParagraphsWithIds(paragraphsWithIds);
+      setCommentsByParagraphId(commentsData);
+      setDismissedComments(dismissedCommentsData);
+
+      // Set isModified if any paragraph has changed or is new
+      const hasChanges = paragraphsWithIds.some(p => p.originalContent !== p.currentContent || p.originalContent === '');
+      setIsModified(hasChanges);
+
     } catch (error) {
       console.error('Error loading review data:', error);
     }
   };
 
-  // Save review draft to database
+  // Save review draft to database (autosave - simple!)
   const saveReviewDraft = async () => {
     if (!reviewId || isLocked) {
       console.log('Skipping save: no reviewId or review is locked');
@@ -637,19 +772,15 @@ export default function ReviewComponent() {
     try {
       setSavingStatus('saving');
 
-      // Prepare paragraphs for saving
-      const paragraphs = paragraphsWithIds.map(p => ({
-        paragraph_id: p.id,
-        content: p.currentContent,
-        is_deleted: false
-      }));
+      console.log('Saving draft:', { reviewId, contentLength: reviewText.length });
 
-      // Call save_review_content RPC function
-      const { error } = await supabase.rpc('save_review_content', {
+      // Simple: just save the full review text as draft
+      const { error } = await supabase.rpc('save_draft', {
         p_review_id: reviewId,
-        p_content: reviewText,
-        p_paragraphs: paragraphs
+        p_content: reviewText
       });
+
+      console.log('RPC save_draft result:', { error });
 
       if (error) throw error;
 
@@ -661,13 +792,34 @@ export default function ReviewComponent() {
 
       setTimeout(() => {
         setSavingStatus('saved');
-        console.log('Review draft saved successfully');
+        console.log('Draft saved successfully');
       }, remainingTime);
     } catch (error) {
-      console.error('Error saving review draft:', error);
+      console.error('Error saving draft:', error);
       setSavingStatus('error');
     }
   };
+
+  // Expose saveReviewDraft to parent via ref
+  useImperativeHandle(ref, () => ({
+    saveReviewDraft: saveReviewDraft
+  }), [saveReviewDraft]);
+
+  // Save on unmount (when navigating away)
+  useEffect(() => {
+    return () => {
+      // Cleanup: save any unsaved changes when component unmounts
+      if (reviewId && !isLocked && reviewTextRef.current) {
+        console.log('Component unmounting, saving draft...');
+        // Note: This runs synchronously before unmount, so we can't use async/await
+        // But we can fire-and-forget the save
+        supabase.rpc('save_draft', {
+          p_review_id: reviewId,
+          p_content: reviewTextRef.current
+        });
+      }
+    };
+  }, [reviewId, isLocked]);
 
   // Save scores after UPDATE
   const saveScores = async (commentData) => {
@@ -718,6 +870,16 @@ export default function ReviewComponent() {
 
   const handleUpdate = async () => {
     if (!isModified) return;
+
+    // Disable editing during UPDATE to prevent race conditions
+    setIsUpdating(true);
+
+    // Cancel any pending autosave timer
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+      console.log('Autosave: timer cancelled due to UPDATE');
+    }
 
     // Save draft before getting comments
     await saveReviewDraft();
@@ -848,9 +1010,26 @@ export default function ReviewComponent() {
       // Add new comments (only for paragraphs that have non-'none' items)
       Object.assign(updatedComments, newComments);
 
+      console.log('Setting comments in UI:', updatedComments);
       setCommentsByParagraphId(updatedComments);
 
-      // Save scores to database
+      // Create version from draft FIRST (create scored snapshot)
+      // Pass all current paragraphs to create full version snapshot
+      const paragraphsForVersion = paragraphsWithIds.map(p => ({
+        paragraph_id: p.id,
+        content: p.currentContent
+      }));
+
+      const { data: newVersion, error: versionError } = await supabase.rpc('create_version_from_draft', {
+        p_review_id: reviewId,
+        p_paragraphs: paragraphsForVersion
+      });
+
+      if (versionError) throw versionError;
+
+      console.log('Created new version:', newVersion);
+
+      // THEN save scores to the new version
       await saveScores(commentResults);
 
       // Update paragraph originalContent to match currentContent
@@ -858,6 +1037,7 @@ export default function ReviewComponent() {
         ...p,
         originalContent: p.currentContent
       }));
+      console.log('Updating paragraphs after UPDATE:', updatedParagraphs);
       setParagraphsWithIds(updatedParagraphs);
 
       // Store current paragraphs for comparison
@@ -876,6 +1056,7 @@ export default function ReviewComponent() {
       if (requestId === currentRequestIdRef.current) {
         setIsLoading(false);
         setLoadingProgress(0);
+        setIsUpdating(false); // Re-enable editing
       }
     }
   };
@@ -887,6 +1068,7 @@ export default function ReviewComponent() {
     // Immediately reset UI
     setIsLoading(false);
     setLoadingProgress(0);
+    setIsUpdating(false); // Re-enable editing
 
     console.log('Request cancelled by user (invalidated request, now expecting #' + currentRequestIdRef.current + ')');
   };
@@ -1233,8 +1415,13 @@ export default function ReviewComponent() {
               ref={textareaRef}
               value={reviewText}
               onChange={handleTextChange}
+              readOnly={isUpdating || isLocked}
               className="font-normal text-[12px] text-black w-full resize-none border-none outline-none bg-transparent leading-normal overflow-hidden"
-              style={{ minHeight: '100%' }}
+              style={{
+                minHeight: '100%',
+                cursor: (isUpdating || isLocked) ? 'not-allowed' : 'text',
+                opacity: isUpdating ? 0.6 : 1
+              }}
             />
 
             {/* Welcome message overlay - shown when textarea is empty */}
@@ -1292,10 +1479,7 @@ export default function ReviewComponent() {
             {/* Comment Bars */}
             {paragraphsWithIds.map((paragraph, index) => {
               const position = paragraphPositions[paragraph.id];  // FIX: Use paragraph.id, not index
-              if (!position) {
-                console.log(`No position for paragraph ${paragraph.id}`);
-                return null;
-              }
+              if (!position) return null;
 
               const id = paragraph.id;
               const color = getCommentBarColor(id);
@@ -1660,4 +1844,8 @@ export default function ReviewComponent() {
 
     </div>
   );
-}
+});
+
+ReviewComponent.displayName = 'ReviewComponent';
+
+export default ReviewComponent;

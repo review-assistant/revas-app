@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from './AuthContext'
 import AuthComponent from './AuthComponent'
 import ReviewComponent from './ReviewComponent'
 import AccountSettings from './AccountSettings'
+import MyTables from './MyTables'
 
-function AccountDropdown({ onSettings }) {
+function AccountDropdown({ onSettings, onTables }) {
   const [isOpen, setIsOpen] = useState(false)
   const { user, signOut } = useAuth()
   const dropdownRef = useRef(null)
@@ -62,6 +63,18 @@ function AccountDropdown({ onSettings }) {
               </svg>
               Account Settings
             </button>
+            <button
+              onClick={() => {
+                onTables()
+                setIsOpen(false)
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              My Tables
+            </button>
             <div className="border-t my-1"></div>
             <button
               onClick={() => {
@@ -84,7 +97,23 @@ function AccountDropdown({ onSettings }) {
 
 function App() {
   const { user, loading } = useAuth()
-  const [currentView, setCurrentView] = useState('main') // 'main' | 'settings'
+  const [currentView, setCurrentView] = useState('main') // 'main' | 'settings' | 'tables'
+  const reviewComponentRef = useRef(null)
+
+  // Save draft before navigating away from main view
+  const handleNavigate = useCallback(async (view) => {
+    if (currentView === 'main' && reviewComponentRef.current) {
+      console.log('Saving draft before navigation...')
+      try {
+        await reviewComponentRef.current.saveReviewDraft()
+        console.log('Draft saved, navigating to:', view)
+      } catch (error) {
+        console.error('Error saving draft:', error)
+        // Navigate anyway - don't block user
+      }
+    }
+    setCurrentView(view)
+  }, [currentView])
 
   if (loading) {
     return (
@@ -99,13 +128,20 @@ function App() {
   }
 
   if (currentView === 'settings') {
-    return <AccountSettings onBack={() => setCurrentView('main')} />
+    return <AccountSettings onBack={() => handleNavigate('main')} />
+  }
+
+  if (currentView === 'tables') {
+    return <MyTables onBack={() => handleNavigate('main')} />
   }
 
   return (
     <div className="relative">
-      <AccountDropdown onSettings={() => setCurrentView('settings')} />
-      <ReviewComponent />
+      <AccountDropdown
+        onSettings={() => handleNavigate('settings')}
+        onTables={() => handleNavigate('tables')}
+      />
+      <ReviewComponent ref={reviewComponentRef} />
     </div>
   )
 }
