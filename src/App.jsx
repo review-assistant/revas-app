@@ -6,8 +6,9 @@ import ReviewComponent from './ReviewComponent'
 import AccountSettings from './AccountSettings'
 import MyTables from './MyTables'
 import MyReviews from './components/MyReviews'
+import ReportIssueModal from './components/ReportIssueModal'
 
-function AccountDropdown({ onSettings, onMyReviews }) {
+function AccountDropdown({ onSettings, onMyReviews, onReportIssue }) {
   const [isOpen, setIsOpen] = useState(false)
   const { user, signOut } = useAuth()
   const dropdownRef = useRef(null)
@@ -91,6 +92,18 @@ function AccountDropdown({ onSettings, onMyReviews }) {
               </svg>
               (dev) My Tables
             </button>
+            <button
+              onClick={() => {
+                onReportIssue()
+                setIsOpen(false)
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Report Issue
+            </button>
             <div className="border-t my-1"></div>
             <button
               onClick={() => {
@@ -116,6 +129,7 @@ function App() {
   const [currentView, setCurrentView] = useState('main') // 'main' | 'settings' | 'tables'
   const [isStandaloneTable, setIsStandaloneTable] = useState(false)
   const [showMyReviews, setShowMyReviews] = useState(false)
+  const [showReportIssue, setShowReportIssue] = useState(false)
   const [currentReview, setCurrentReview] = useState(null) // { reviewId, paperId, paperTitle, paperConference }
   const reviewComponentRef = useRef(null)
 
@@ -229,8 +243,12 @@ function App() {
         <AccountDropdown
           onSettings={() => handleNavigate('settings')}
           onMyReviews={handleShowMyReviews}
+          onReportIssue={() => setShowReportIssue(true)}
         />
         <MyTables onBack={isStandaloneTable ? null : () => handleNavigate('main')} />
+        {showReportIssue && (
+          <ReportIssueModal onClose={() => setShowReportIssue(false)} />
+        )}
         {showMyReviews && (
           <MyReviews
             onSelectReview={(reviewInfo) => {
@@ -256,6 +274,7 @@ function App() {
       <AccountDropdown
         onSettings={() => handleNavigate('settings')}
         onMyReviews={handleShowMyReviews}
+        onReportIssue={() => setShowReportIssue(true)}
       />
       {currentReview && (
         <ReviewComponent
@@ -270,6 +289,9 @@ function App() {
           onCancel={() => setShowMyReviews(false)}
           showCloseButton={currentReview !== null}
         />
+      )}
+      {showReportIssue && (
+        <ReportIssueModal onClose={() => setShowReportIssue(false)} />
       )}
     </div>
   )
