@@ -1462,13 +1462,19 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
         <p className="font-normal text-[20px] text-black">
           {truncatePaperName(currentReview?.paperTitle)}
         </p>
-        <button
-          onClick={handleDiscard}
-          className="px-2 py-0.5 text-[12px] text-gray-500 border border-gray-300 rounded hover:bg-gray-100 hover:text-gray-700 transition-colors"
-          title={currentReview?.paperTitle || 'Discard this review'}
-        >
-          Discard
-        </button>
+        {isLocked ? (
+          <span className="px-2 py-0.5 text-[12px] text-gray-400 border border-gray-200 rounded bg-gray-50">
+            Locked
+          </span>
+        ) : (
+          <button
+            onClick={handleDiscard}
+            className="px-2 py-0.5 text-[12px] text-gray-500 border border-gray-300 rounded hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            title={currentReview?.paperTitle || 'Discard this review'}
+          >
+            Discard
+          </button>
+        )}
         {savingStatus === 'saving' && (
           <span className="ml-3 text-[12px] text-gray-400 italic font-normal">
             saving...
@@ -1556,8 +1562,8 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
               }}
             />
 
-            {/* Loading overlay - shown while loading existing review */}
-            {!isInitialized && currentReview && !currentReview.isNewReview && (
+            {/* Loading overlay - shown while loading review data or updating */}
+            {((!isInitialized && currentReview && !currentReview.isNewReview) || isUpdating) && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <span className="text-[48px] text-gray-300 font-light">
                   Loading...
