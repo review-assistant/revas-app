@@ -545,6 +545,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
     if (currentReview.isNewReview) {
       // Creating new review
+      setIsInitialized(false); // Show loading state while creating review
       handlePaperInfoSubmit({
         title: currentReview.paperTitle,
         conference: currentReview.paperConference,
@@ -1567,8 +1568,8 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
               }}
             />
 
-            {/* Loading overlay - shown while loading review data or updating */}
-            {((!isInitialized && currentReview && !currentReview.isNewReview) || isUpdating) && (
+            {/* Loading overlay - shown while loading/creating review or updating */}
+            {((!isInitialized && currentReview) || isUpdating) && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <span className="text-[48px] text-gray-300 font-light">
                   Loading...
