@@ -21,8 +21,8 @@ Paused work items intended for future development.
 
 ### 2. Navigation During Pending Operations
 
-- [ ] **No navigation blocking during UPDATE** - User can click Discard or navigate away while UPDATE API call is in flight. No warning, data could be lost.
-  - Suggested fix: Add `beforeunload` handler or navigation guard when `isUpdating === true`
+- [x] **No navigation blocking during UPDATE** - ~~User can click Discard or navigate away while UPDATE API call is in flight. No warning, data could be lost.~~
+  - ADDRESSED: Discard button is now disabled during UPDATE (`isUpdating`). Textarea is read-only with Loading overlay.
 
 - [ ] **No "unsaved changes" warning** - Discarding a review with `isModified === true` should warn user (currently handled in App.jsx but may not cover all edge cases)
 
@@ -30,8 +30,8 @@ Paused work items intended for future development.
 
 ### 3. Comment Update Arrival Races
 
-- [ ] **Stale comments for edited paragraphs** - If user edits text while API call is in flight, returned comments are for old content but get associated with current paragraph IDs.
-  - The `requestId` check (line 1028-1032) helps but doesn't prevent all mismatches
+- [x] **Stale comments for edited paragraphs** - ~~If user edits text while API call is in flight, returned comments are for old content but get associated with current paragraph IDs.~~
+  - ADDRESSED: Textarea is now read-only during UPDATE (`isUpdating`), preventing edits while API call is in flight
 
 - [ ] **Paragraph ID drift during edits** ⚠️ HIGH PRIORITY - Paragraphs naturally evolve over the course of user edits and UPDATE cycles. The fuzzy matcher must reliably track paragraph identity through:
   - Minor text edits (typos, word changes)

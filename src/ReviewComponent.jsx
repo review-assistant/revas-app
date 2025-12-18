@@ -1469,8 +1469,13 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
         ) : (
           <button
             onClick={handleDiscard}
-            className="px-2 py-0.5 text-[12px] text-gray-500 border border-gray-300 rounded hover:bg-gray-100 hover:text-gray-700 transition-colors"
-            title={currentReview?.paperTitle || 'Discard this review'}
+            disabled={isUpdating}
+            className={`px-2 py-0.5 text-[12px] border rounded transition-colors ${
+              isUpdating
+                ? 'text-gray-300 border-gray-200 cursor-not-allowed'
+                : 'text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-700'
+            }`}
+            title={isUpdating ? 'Please wait for update to complete' : (currentReview?.paperTitle || 'Discard this review')}
           >
             Discard
           </button>
