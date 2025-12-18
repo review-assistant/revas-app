@@ -77,6 +77,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
   const justClosedCommentRef = useRef(null);
   const currentRequestIdRef = useRef(0);
   const commentTextRef = useRef(null);
+  const isInitializingRef = useRef(false); // Guard against StrictMode double-execution
 
   // Keep ref in sync with state to avoid closure issues
   useEffect(() => {
@@ -521,10 +522,18 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       setPaperTitle('');
       setPaperConference('');
       setIsInitialized(false);
+      isInitializingRef.current = false; // Reset guard when clearing
       return;
     }
 
     console.log('Initializing from currentReview prop:', currentReview);
+
+    // Guard against StrictMode double-execution for async operations
+    if (isInitializingRef.current) {
+      console.log('Already initializing, skipping duplicate');
+      return;
+    }
+    isInitializingRef.current = true;
 
     // Reset state when switching to a different review
     setReviewText('');
@@ -540,6 +549,8 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
         title: currentReview.paperTitle,
         conference: currentReview.paperConference,
         initialText: currentReview.initialText
+      }).finally(() => {
+        isInitializingRef.current = false;
       });
     } else {
       // Loading existing review
@@ -547,7 +558,9 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       setPaperId(currentReview.paperId);
       setPaperTitle(currentReview.paperTitle);
       setPaperConference(currentReview.paperConference);
-      loadReviewData(currentReview.reviewId);
+      loadReviewData(currentReview.reviewId).finally(() => {
+        isInitializingRef.current = false;
+      });
       setIsInitialized(true);
     }
   }, [currentReview]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -906,7 +919,8 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
   useEffect(() => {
     return () => {
       // Cleanup: save any unsaved changes when component unmounts
-      if (reviewId && !isLocked && reviewTextRef.current) {
+      // Skip if still initializing (e.g., StrictMode remount)
+      if (reviewId && !isLocked && reviewTextRef.current && !isInitializingRef.current) {
         console.log('Component unmounting, saving draft...');
         // Note: This runs synchronously before unmount, so we can't use async/await
         // But we can fire-and-forget the save
