@@ -521,7 +521,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       setPaperId(null);
       setPaperTitle('');
       setPaperConference('');
-      setIsInitialized(false);
+      setIsInitialized(true); // No data to load, component is immediately usable
       isInitializingRef.current = false; // Reset guard when clearing
       return;
     }
@@ -554,14 +554,15 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       });
     } else {
       // Loading existing review
+      setIsInitialized(false); // Show loading state while fetching data
       setReviewId(currentReview.reviewId);
       setPaperId(currentReview.paperId);
       setPaperTitle(currentReview.paperTitle);
       setPaperConference(currentReview.paperConference);
       loadReviewData(currentReview.reviewId).finally(() => {
         isInitializingRef.current = false;
+        setIsInitialized(true); // Enable editing after data loads
       });
-      setIsInitialized(true);
     }
   }, [currentReview]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1546,17 +1547,26 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
               ref={textareaRef}
               value={reviewText}
               onChange={handleTextChange}
-              readOnly={isUpdating || isLocked}
+              readOnly={!isInitialized || isUpdating || isLocked}
               className="font-normal text-[12px] text-black w-full resize-none border-none outline-none bg-transparent leading-normal overflow-hidden"
               style={{
                 minHeight: '100%',
-                cursor: (isUpdating || isLocked) ? 'not-allowed' : 'text',
-                opacity: isUpdating ? 0.6 : 1
+                cursor: (!isInitialized || isUpdating || isLocked) ? 'not-allowed' : 'text',
+                opacity: (!isInitialized || isUpdating) ? 0.6 : 1
               }}
             />
 
+            {/* Loading overlay - shown while loading existing review */}
+            {!isInitialized && currentReview && !currentReview.isNewReview && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className="text-[48px] text-gray-300 font-light">
+                  Loading...
+                </span>
+              </div>
+            )}
+
             {/* Welcome message overlay - shown when textarea is empty */}
-            {reviewText === '' && (
+            {reviewText === '' && isInitialized && (
               <div
                 className="absolute inset-0 flex items-center justify-center cursor-text"
                 onClick={() => textareaRef.current?.focus()}

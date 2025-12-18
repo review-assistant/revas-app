@@ -9,7 +9,26 @@ vi.mock('./commentsClient', () => ({
   SAMPLE_REVIEW_TEXT: 'Sample review text for testing'
 }))
 
+// Mock supabase client - prevents any database writes during tests
+vi.mock('./supabaseClient', () => ({
+  supabase: {
+    rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    auth: {
+      getSession: vi.fn(() => Promise.resolve({ data: { session: null } }))
+    }
+  }
+}))
+
 import { getComments } from './commentsClient'
+
+// Default currentReview for tests - component requires this to be present
+const defaultCurrentReview = {
+  reviewId: 'test-review-id',
+  paperId: 'test-paper-id',
+  paperTitle: 'Test Paper',
+  paperConference: 'Test Conference 2024',
+  isNewReview: true // New review so we don't need to mock loadReviewData
+}
 
 describe('ReviewComponent', () => {
   beforeEach(() => {
@@ -24,26 +43,36 @@ describe('ReviewComponent', () => {
   })
 
   describe('Initial Render', () => {
-    it('renders the main components', () => {
-      render(<ReviewComponent />)
+    it('renders the main components', async () => {
+      render(<ReviewComponent currentReview={defaultCurrentReview} />)
 
-      expect(screen.getByText('Edit your review:')).toBeInTheDocument()
+      // Wait for initialization to complete
+      await waitFor(() => {
+        expect(screen.getByText('Test Paper')).toBeInTheDocument()
+      })
       expect(screen.getByRole('textbox')).toBeInTheDocument()
       expect(screen.getByText('UPDATE')).toBeInTheDocument()
     })
 
-    it('renders statistics section', () => {
-      render(<ReviewComponent />)
+    it('renders statistics section', async () => {
+      render(<ReviewComponent currentReview={defaultCurrentReview} />)
 
-      expect(screen.getByText(/Critical/)).toBeInTheDocument()
-      expect(screen.getByText(/Moderate/)).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByText(/Critical/)).toBeInTheDocument()
+        expect(screen.getByText(/Moderate/)).toBeInTheDocument()
+      })
     })
   })
 
   describe('Text Editing', () => {
     it('enables UPDATE button when text is modified', async () => {
       const user = userEvent.setup()
-      render(<ReviewComponent />)
+      render(<ReviewComponent currentReview={defaultCurrentReview} />)
+
+      // Wait for initialization
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument()
+      })
 
       const textarea = screen.getByRole('textbox')
 
@@ -62,7 +91,11 @@ describe('ReviewComponent', () => {
       const user = userEvent.setup()
       getComments.mockResolvedValue({})
 
-      render(<ReviewComponent />)
+      render(<ReviewComponent currentReview={defaultCurrentReview} />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument()
+      })
 
       const textarea = screen.getByRole('textbox')
       await user.type(textarea, 'Test paragraph.')
@@ -82,7 +115,11 @@ describe('ReviewComponent', () => {
       const user = userEvent.setup()
       getComments.mockResolvedValue({})
 
-      render(<ReviewComponent />)
+      render(<ReviewComponent currentReview={defaultCurrentReview} />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument()
+      })
 
       await user.type(screen.getByRole('textbox'), 'Test paragraph.')
       await user.click(screen.getByRole('button', { name: 'UPDATE' }))
@@ -101,7 +138,11 @@ describe('ReviewComponent', () => {
         }
       })
 
-      render(<ReviewComponent />)
+      render(<ReviewComponent currentReview={defaultCurrentReview} />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument()
+      })
 
       await user.type(screen.getByRole('textbox'), 'Test paragraph with issues.')
       await user.click(screen.getByRole('button', { name: 'UPDATE' }))
@@ -125,7 +166,11 @@ describe('ReviewComponent', () => {
         }
       })
 
-      render(<ReviewComponent />)
+      render(<ReviewComponent currentReview={defaultCurrentReview} />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument()
+      })
 
       await user.type(screen.getByRole('textbox'), 'Test paragraph.')
       await user.click(screen.getByRole('button', { name: 'UPDATE' }))
@@ -153,7 +198,11 @@ describe('ReviewComponent', () => {
         })
       )
 
-      render(<ReviewComponent />)
+      render(<ReviewComponent currentReview={defaultCurrentReview} />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument()
+      })
 
       await user.type(screen.getByRole('textbox'), 'Test')
 
@@ -186,7 +235,11 @@ describe('ReviewComponent', () => {
       // Mock rejection - component now has error handling in try-catch
       getComments.mockRejectedValue(new Error('API Error'))
 
-      render(<ReviewComponent />)
+      render(<ReviewComponent currentReview={defaultCurrentReview} />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument()
+      })
 
       await user.type(screen.getByRole('textbox'), 'Test error.')
 
@@ -229,7 +282,11 @@ describe('ReviewComponent', () => {
         }
       })
 
-      render(<ReviewComponent />)
+      render(<ReviewComponent currentReview={defaultCurrentReview} />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox')).toBeInTheDocument()
+      })
 
       // Add text and update to get comments
       await user.type(screen.getByRole('textbox'), 'Test paragraph with issues.')
