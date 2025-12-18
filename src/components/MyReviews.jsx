@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
+import iclrData from '../../data/ICLR-2024.json'
 
 export default function MyReviews({ onSelectReview, onCancel, showCloseButton = false }) {
   const [reviews, setReviews] = useState([])
@@ -96,6 +97,24 @@ export default function MyReviews({ onSelectReview, onCancel, showCloseButton = 
   const handleCreateNew = () => {
     setSelectedReviewId(null)
     setError(null) // Clear any error when creating new
+  }
+
+  const handleRandomICLR = () => {
+    // Pick a random paper from the ICLR dataset
+    const randomIndex = Math.floor(Math.random() * iclrData.length)
+    const paper = iclrData[randomIndex]
+
+    // Combine all weaknesses into review text (each weakness becomes a paragraph)
+    const reviewText = paper.weaknesses.join('\n\n')
+
+    onSelectReview({
+      reviewId: null,
+      paperId: null,
+      paperTitle: paper.title,
+      paperConference: paper.conference,
+      isNewReview: true,
+      initialText: reviewText
+    })
   }
 
   const formatDate = (dateString) => {
@@ -279,13 +298,20 @@ export default function MyReviews({ onSelectReview, onCancel, showCloseButton = 
           </div>
         )}
 
-        {/* Action Button */}
-        <div className="mt-4">
+        {/* Action Buttons */}
+        <div className="mt-4 flex gap-3">
           <button
             onClick={handleContinue}
-            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
             {getButtonText()}
+          </button>
+          <button
+            onClick={handleRandomICLR}
+            className="px-4 py-3 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium border border-gray-300"
+            title="Create a new review with sample data from ICLR"
+          >
+            (dev) Random ICLR review
           </button>
         </div>
       </div>

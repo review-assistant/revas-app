@@ -1,0 +1,247 @@
+[
+  {
+    "paperId": "sample001",
+    "title": "Scaling Laws for Neural Language Models",
+    "conference": "ICLR 2024",
+    "reviewCount": 4,
+    "weaknesses": [
+      "The experimental evaluation is limited to English-only datasets. It would strengthen the paper to include multilingual experiments or at least discuss the expected behavior on non-English text.",
+      "The theoretical analysis in Section 3.2 makes several simplifying assumptions that may not hold in practice. Specifically, the assumption of i.i.d. training examples is violated when using web-scraped data with inherent correlations.",
+      "Missing comparison with recent concurrent work on compute-optimal training (Chinchilla). The authors should discuss how their findings relate to or differ from these results.",
+      "The paper lacks error bars or confidence intervals for the main results in Table 2. Given the stochastic nature of neural network training, statistical significance should be established."
+    ]
+  },
+  {
+    "paperId": "sample002",
+    "title": "Self-Supervised Learning for Graph Neural Networks",
+    "conference": "ICLR 2024",
+    "reviewCount": 3,
+    "weaknesses": [
+      "The method requires significant hyperparameter tuning for each dataset. The sensitivity analysis in Appendix B shows that performance varies by up to 15% based on the choice of augmentation strength.",
+      "Computational overhead is substantial. Training time is 3x longer than supervised baselines, which may limit practical applicability for large-scale graphs.",
+      "The paper does not adequately address the limitation of homophily assumption. For heterophilic graphs, the proposed contrastive objective may produce suboptimal representations.",
+      "Writing quality needs improvement. Section 4 contains several grammatical errors and the notation is inconsistent between equations (3) and (7)."
+    ]
+  },
+  {
+    "paperId": "sample003",
+    "title": "Efficient Attention Mechanisms for Long Documents",
+    "conference": "ICLR 2024",
+    "reviewCount": 4,
+    "weaknesses": [
+      "The claimed linear complexity is only achieved under specific conditions (sparsity ratio < 0.1). In practice, many documents exceed this threshold, reverting to quadratic complexity.",
+      "Evaluation is limited to synthetic benchmarks. Real-world long document tasks like legal document analysis or scientific paper understanding would provide more convincing evidence.",
+      "The approximation error introduced by the sparse attention pattern is not thoroughly analyzed. Theoretical bounds on the error would strengthen the contribution.",
+      "Code is not provided and the implementation details in Section 5 are insufficient for reproduction. Key details like the chunk size selection algorithm are missing."
+    ]
+  },
+  {
+    "paperId": "sample004",
+    "title": "Robust Optimization for Deep Neural Networks",
+    "conference": "ICLR 2024",
+    "reviewCount": 3,
+    "weaknesses": [
+      "The threat model considered is relatively weak (l-infinity perturbation with epsilon=8/255). State-of-the-art attacks and more challenging perturbation budgets should be evaluated.",
+      "The method does not provide certified robustness guarantees. While empirical robustness is improved, the lack of formal guarantees limits applicability in safety-critical domains.",
+      "Training time increases by 40% compared to standard adversarial training. This overhead may be prohibitive for large-scale models.",
+      "The paper focuses exclusively on image classification. Extending to other domains (NLP, speech) would demonstrate broader applicability."
+    ]
+  },
+  {
+    "paperId": "sample005",
+    "title": "Diffusion Models for Molecular Generation",
+    "conference": "ICLR 2024",
+    "reviewCount": 4,
+    "weaknesses": [
+      "The generated molecules, while valid, often lack drug-likeness properties. Filtering for synthesizability reduces the effective hit rate significantly.",
+      "Comparison with autoregressive baselines is incomplete. The paper should include comparison with recent transformer-based molecular generators.",
+      "The conditioning mechanism for property-guided generation is limited to single objectives. Multi-objective optimization scenarios common in drug discovery are not addressed.",
+      "Sampling is slow compared to one-shot methods. Generating 1000 molecules requires approximately 2 hours on a V100 GPU.",
+      "The novelty of the architecture is incremental. The main contribution is applying existing diffusion techniques to the molecular domain without significant methodological innovation."
+    ]
+  },
+  {
+    "paperId": "sample006",
+    "title": "Federated Learning with Heterogeneous Clients",
+    "conference": "ICLR 2024",
+    "reviewCount": 3,
+    "weaknesses": [
+      "Privacy analysis is incomplete. The paper does not provide differential privacy guarantees or analyze potential information leakage through gradient updates.",
+      "Experiments assume all clients participate in each round. The more realistic partial participation setting shows degraded performance not discussed in the main text.",
+      "The convergence rate depends on unknown quantities (data heterogeneity bound) that cannot be estimated in practice, limiting the usefulness of the theoretical results.",
+      "Communication costs are not compared fairly. The baseline methods use compressed gradients while the proposed method transmits full model updates."
+    ]
+  },
+  {
+    "paperId": "sample007",
+    "title": "Neural Symbolic Reasoning for Question Answering",
+    "conference": "ICLR 2024",
+    "reviewCount": 4,
+    "weaknesses": [
+      "The symbolic reasoning component requires hand-crafted rules for each domain. This limits scalability and requires significant domain expertise to deploy.",
+      "Error analysis reveals that 60% of failures stem from parsing errors in the neural-to-symbolic interface. Improving this component would likely yield larger gains than the proposed modifications.",
+      "The benchmark datasets used are relatively small and saturated. Performance on more challenging reasoning benchmarks would be informative.",
+      "Latency is significantly higher than end-to-end neural approaches due to the symbolic execution overhead. Real-time applications may not be feasible."
+    ]
+  },
+  {
+    "paperId": "sample008",
+    "title": "Continuous Control with World Models",
+    "conference": "ICLR 2024",
+    "reviewCount": 3,
+    "weaknesses": [
+      "The world model struggles with stochastic environments. Performance on domains with significant aleatoric uncertainty (e.g., stochastic Atari games) is not evaluated.",
+      "Model compounding errors over long horizons limit the effective planning depth. The paper does not adequately address how to mitigate error accumulation.",
+      "Sample efficiency improvements are measured against outdated baselines. Comparison with recent model-free methods like DrQ-v2 would be more informative.",
+      "The imagination-based training is computationally expensive, requiring 8 GPUs for 3 days. This may be prohibitive for many researchers."
+    ]
+  },
+  {
+    "paperId": "sample009",
+    "title": "Efficient Fine-tuning of Large Language Models",
+    "conference": "ICLR 2024",
+    "reviewCount": 4,
+    "weaknesses": [
+      "The parameter efficiency gains come at the cost of task performance. On complex reasoning tasks, the gap with full fine-tuning exceeds 5 percentage points.",
+      "The method assumes access to a pretrained model checkpoint. For closed-source models accessed via API, the proposed approach is not applicable.",
+      "Ablation studies on the rank selection for low-rank adaptation are insufficient. Guidelines for practitioners on how to choose this hyperparameter are needed.",
+      "Memory savings are overstated. During backpropagation, activations still need to be stored, limiting practical memory reduction to approximately 30%.",
+      "The paper does not discuss potential negative societal impacts of making large model fine-tuning more accessible."
+    ]
+  },
+  {
+    "paperId": "sample010",
+    "title": "Causal Discovery from Observational Data",
+    "conference": "ICLR 2024",
+    "reviewCount": 3,
+    "weaknesses": [
+      "The faithfulness assumption is strong and often violated in real data. The paper does not discuss robustness to violations of this assumption.",
+      "Scalability is limited. The method becomes impractical for graphs with more than 50 nodes due to the combinatorial nature of the search space.",
+      "Comparison with constraint-based methods (PC, FCI) is missing. These remain strong baselines that should be included.",
+      "The synthetic data generation process favors the proposed method. Results on standardized benchmarks would be more convincing."
+    ]
+  },
+  {
+    "paperId": "sample011",
+    "title": "Multimodal Representation Learning",
+    "conference": "ICLR 2024",
+    "reviewCount": 4,
+    "weaknesses": [
+      "The alignment objective treats all modalities equally, but visual and textual information have fundamentally different characteristics. A more nuanced approach might improve performance.",
+      "Missing modality handling is not addressed. In practice, not all samples have complete multimodal information, and the method's behavior in these cases is unclear.",
+      "The paper claims state-of-the-art results but uses different pretraining data than baselines, making the comparison unfair.",
+      "Computational requirements (64 A100 GPUs) make reproduction difficult for most research groups."
+    ]
+  },
+  {
+    "paperId": "sample012",
+    "title": "Time Series Forecasting with Transformers",
+    "conference": "ICLR 2024",
+    "reviewCount": 3,
+    "weaknesses": [
+      "Recent work has shown that simple linear models outperform transformer-based approaches on many benchmarks. The paper does not adequately engage with this criticism.",
+      "The positional encoding scheme assumes regular sampling intervals. Irregular time series common in healthcare and finance require different handling.",
+      "Forecasting horizons tested are relatively short (96 steps). Long-term forecasting performance would strengthen the evaluation.",
+      "The attention visualizations in Figure 4 do not clearly demonstrate that the model learns meaningful temporal patterns."
+    ]
+  },
+  {
+    "paperId": "sample013",
+    "title": "Generative Models for 3D Shapes",
+    "conference": "ICLR 2024",
+    "reviewCount": 4,
+    "weaknesses": [
+      "The resolution of generated shapes (64^3 voxels) is too low for many practical applications. Higher resolution generation remains an open challenge.",
+      "Diversity of generated shapes is limited. The FID-like metrics reported may not capture mode collapse adequately.",
+      "The method is evaluated only on synthetic datasets (ShapeNet). Real-world 3D scans with noise and incompleteness would be more challenging.",
+      "Conditional generation based on text descriptions is limited to simple shape categories. Complex compositional descriptions are not handled well.",
+      "The paper does not compare with recent neural implicit representations which have shown superior quality."
+    ]
+  },
+  {
+    "paperId": "sample014",
+    "title": "Privacy-Preserving Machine Learning",
+    "conference": "ICLR 2024",
+    "reviewCount": 3,
+    "weaknesses": [
+      "The privacy-utility tradeoff achieved is worse than existing methods at the same privacy budget (epsilon=1). The claimed improvements only manifest at weaker privacy guarantees.",
+      "The threat model does not consider reconstruction attacks. Recent work has shown that membership inference is not the only relevant attack vector.",
+      "Experiments are limited to small-scale datasets. The scalability to ImageNet-scale training is not demonstrated.",
+      "The paper conflates differential privacy with other privacy notions. The security claims should be stated more precisely."
+    ]
+  },
+  {
+    "paperId": "sample015",
+    "title": "Reinforcement Learning from Human Feedback",
+    "conference": "ICLR 2024",
+    "reviewCount": 4,
+    "weaknesses": [
+      "The preference data collection protocol is not described in sufficient detail. Inter-annotator agreement statistics are missing.",
+      "The reward model may learn spurious correlations (e.g., response length) rather than genuine quality differences. Analysis of reward model failure modes is needed.",
+      "KL divergence constraint from the reference policy limits the extent of improvement achievable. More flexible regularization schemes could be explored.",
+      "Safety considerations are mentioned but not thoroughly evaluated. Red-teaming results would strengthen the paper.",
+      "The computational cost of the RLHF pipeline (reward model training + PPO) is substantial and not fully characterized."
+    ]
+  },
+  {
+    "paperId": "sample016",
+    "title": "Neural Architecture Search for Edge Devices",
+    "conference": "ICLR 2024",
+    "reviewCount": 3,
+    "weaknesses": [
+      "The search space is restricted to mobile-friendly operations. This limits the applicability to other edge devices with different computational characteristics.",
+      "Latency measurements are performed on a single device (Pixel 4). Different hardware may yield different optimal architectures.",
+      "The supernet training introduces significant bias. Architectures that perform well in the supernet may not transfer to standalone training.",
+      "Energy consumption, an important metric for edge deployment, is not evaluated."
+    ]
+  },
+  {
+    "paperId": "sample017",
+    "title": "Zero-Shot Learning with Vision-Language Models",
+    "conference": "ICLR 2024",
+    "reviewCount": 4,
+    "weaknesses": [
+      "The improvements over CLIP are marginal (1-2%) on standard benchmarks. The additional complexity may not be justified.",
+      "The method requires access to class descriptions at test time. For truly zero-shot scenarios where even the class names are unknown, the approach is not applicable.",
+      "Fine-grained classification performance lags significantly behind supervised approaches. The gap is especially large for domain-specific datasets.",
+      "The paper does not discuss potential biases inherited from web-scraped pretraining data."
+    ]
+  },
+  {
+    "paperId": "sample018",
+    "title": "Graph Transformers for Molecular Property Prediction",
+    "conference": "ICLR 2024",
+    "reviewCount": 3,
+    "weaknesses": [
+      "The positional encodings used (Laplacian eigenvectors) are not unique and can produce inconsistent representations for isomorphic graphs.",
+      "Scaling to large molecules (>100 atoms) is problematic due to quadratic attention complexity.",
+      "The improvement over message-passing networks is inconsistent across datasets. On some benchmarks, simpler GNNs achieve comparable results.",
+      "The paper does not adequately discuss the expressivity limitations relative to the Weisfeiler-Leman hierarchy."
+    ]
+  },
+  {
+    "paperId": "sample019",
+    "title": "Continual Learning Without Catastrophic Forgetting",
+    "conference": "ICLR 2024",
+    "reviewCount": 4,
+    "weaknesses": [
+      "The memory buffer size (5000 samples) is larger than many existing methods. Fair comparison should match buffer sizes across methods.",
+      "Evaluation on class-incremental learning only. Task-incremental and domain-incremental settings should also be considered.",
+      "The method assumes knowledge of task boundaries. More realistic settings where task transitions are not explicitly signaled are not addressed.",
+      "Forward transfer analysis is missing. The focus on preventing forgetting neglects the equally important goal of enabling positive transfer.",
+      "Computational overhead during inference (need to evaluate task-specific parameters) is not discussed."
+    ]
+  },
+  {
+    "paperId": "sample020",
+    "title": "Efficient Training of Sparse Neural Networks",
+    "conference": "ICLR 2024",
+    "reviewCount": 3,
+    "weaknesses": [
+      "Actual wall-clock speedups are modest compared to theoretical FLOPs reduction. The implementation does not fully leverage sparsity due to hardware limitations.",
+      "The sparse patterns learned are irregular, making them difficult to accelerate on standard hardware. Structured sparsity variants should be explored.",
+      "Comparison with dynamic sparse training methods is incomplete. Recent approaches like RigL achieve similar sparsity levels with less overhead.",
+      "The paper focuses on vision models. Extension to language models and other architectures is left as future work."
+    ]
+  }
+]

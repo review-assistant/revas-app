@@ -538,7 +538,8 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       // Creating new review
       handlePaperInfoSubmit({
         title: currentReview.paperTitle,
-        conference: currentReview.paperConference
+        conference: currentReview.paperConference,
+        initialText: currentReview.initialText
       });
     } else {
       // Loading existing review
@@ -635,7 +636,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
   };
 
   // Handle paper info submission
-  const handlePaperInfoSubmit = async ({ title, conference }) => {
+  const handlePaperInfoSubmit = async ({ title, conference, initialText }) => {
     setShowPaperDialog(false);
 
     try {
@@ -663,6 +664,12 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
       // Load existing review data if it exists
       await loadReviewData(newReviewId);
+
+      // If initial text was provided (e.g., from dev sample data), populate it
+      if (initialText) {
+        setReviewText(initialText);
+        setIsModified(true);
+      }
 
       setIsInitialized(true);
     } catch (error) {
