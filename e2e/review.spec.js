@@ -152,4 +152,185 @@ test.describe('Review Component', () => {
     // Note: This might not persist depending on your implementation
     // Adjust test based on actual behavior
   })
+
+  test('@smoke ICLR review comments persist after My Reviews navigation', async ({ page }) => {
+    // This test verifies that comments are correctly saved and restored
+    // when navigating away via My Reviews and returning to the same review
+
+    // Step 1: Navigate back to My Reviews modal to use ICLR button
+    await page.click(`text=${testEmail}`)
+    await page.click('text=My Reviews')
+
+    // Wait for My Reviews modal to appear
+    await expect(page.locator('h2:has-text("My Reviews")')).toBeVisible({ timeout: 5000 })
+
+    // Step 2: Click the ICLR button to create a review with sample data
+    await page.click('button:has-text("Random ICLR review")')
+
+    // Wait for review editor to appear with pre-filled text
+    const textarea = page.locator('textarea')
+    await expect(textarea).toBeVisible({ timeout: 5000 })
+
+    // Verify textarea has content (ICLR review text is pre-filled)
+    await expect(textarea).not.toBeEmpty({ timeout: 5000 })
+
+    // Step 3: Click UPDATE to generate comments
+    const updateButton = page.getByRole('button', { name: 'UPDATE' })
+    await expect(updateButton).toHaveClass(/bg-\[#4a90e2\]/) // Should be active (blue)
+    await updateButton.click()
+
+    // Wait for update to complete (button becomes gray)
+    // Use longer timeout as API can be slow
+    await expect(updateButton).toHaveClass(/bg-\[#d9d9d9\]/, { timeout: 90000 })
+
+    // Step 4: Capture statistics counts before navigation
+    // Extract the numbers from statistics text
+    const criticalStatBefore = await page.locator('text=/Critical \\(\\d+\\)/').textContent()
+    const moderateStatBefore = await page.locator('text=/Moderate \\(\\d+\\)/').textContent()
+    const actionabilityStatBefore = await page.locator('text=/Actionability \\(\\d+\\)/').textContent()
+    const helpfulnessStatBefore = await page.locator('text=/Helpfulness \\(\\d+\\)/').textContent()
+
+    console.log('Statistics before navigation:', {
+      critical: criticalStatBefore,
+      moderate: moderateStatBefore,
+      actionability: actionabilityStatBefore,
+      helpfulness: helpfulnessStatBefore
+    })
+
+    // Verify we have at least some comments
+    expect(criticalStatBefore || moderateStatBefore).toBeTruthy()
+
+    // Step 5: Navigate to My Reviews
+    await page.click(`text=${testEmail}`)
+    await page.click('text=My Reviews')
+
+    // Wait for My Reviews modal to appear
+    await expect(page.locator('h2:has-text("My Reviews")')).toBeVisible({ timeout: 5000 })
+
+    // Step 6: Click on the review to return to it
+    // The review should be listed - click on its button
+    // Look for a review button (it shows word count like "123 words")
+    const reviewButton = page.locator('button').filter({ hasText: /\d+ words/ }).first()
+    await expect(reviewButton).toBeVisible({ timeout: 5000 })
+    await reviewButton.click()
+
+    // Wait for review editor to reappear
+    await expect(textarea).toBeVisible({ timeout: 5000 })
+
+    // Wait for comments to load (give it time to fetch from database)
+    await page.waitForTimeout(2000)
+
+    // Step 7: Verify the same statistics are visible
+    const criticalStatAfter = await page.locator('text=/Critical \\(\\d+\\)/').textContent()
+    const moderateStatAfter = await page.locator('text=/Moderate \\(\\d+\\)/').textContent()
+    const actionabilityStatAfter = await page.locator('text=/Actionability \\(\\d+\\)/').textContent()
+    const helpfulnessStatAfter = await page.locator('text=/Helpfulness \\(\\d+\\)/').textContent()
+
+    console.log('Statistics after navigation:', {
+      critical: criticalStatAfter,
+      moderate: moderateStatAfter,
+      actionability: actionabilityStatAfter,
+      helpfulness: helpfulnessStatAfter
+    })
+
+    // Verify statistics match
+    expect(criticalStatAfter).toBe(criticalStatBefore)
+    expect(moderateStatAfter).toBe(moderateStatBefore)
+    expect(actionabilityStatAfter).toBe(actionabilityStatBefore)
+    expect(helpfulnessStatAfter).toBe(helpfulnessStatBefore)
+  })
+
+  test('ICLR review comments persist after paragraph edit and My Reviews navigation', async ({ page }) => {
+    // This test verifies comments persist even when a paragraph is deleted and re-pasted
+    // before navigating away (reported bug scenario)
+
+    // Step 1: Navigate back to My Reviews modal to use ICLR button
+    await page.click(`text=${testEmail}`)
+    await page.click('text=My Reviews')
+
+    // Wait for My Reviews modal to appear
+    await expect(page.locator('h2:has-text("My Reviews")')).toBeVisible({ timeout: 5000 })
+
+    // Step 2: Click the ICLR button to create a review with sample data
+    await page.click('button:has-text("Random ICLR review")')
+
+    // Wait for review editor to appear with pre-filled text
+    const textarea = page.locator('textarea')
+    await expect(textarea).toBeVisible({ timeout: 5000 })
+    await expect(textarea).not.toBeEmpty({ timeout: 5000 })
+
+    // Step 3: Click UPDATE to generate comments
+    const updateButton = page.getByRole('button', { name: 'UPDATE' })
+    await expect(updateButton).toHaveClass(/bg-\[#4a90e2\]/)
+    await updateButton.click()
+
+    // Wait for update to complete (use longer timeout as API can be slow)
+    await expect(updateButton).toHaveClass(/bg-\[#d9d9d9\]/, { timeout: 90000 })
+
+    // Step 4: Capture statistics before editing
+    const criticalStatBefore = await page.locator('text=/Critical \\(\\d+\\)/').textContent()
+    const moderateStatBefore = await page.locator('text=/Moderate \\(\\d+\\)/').textContent()
+    const actionabilityStatBefore = await page.locator('text=/Actionability \\(\\d+\\)/').textContent()
+    const helpfulnessStatBefore = await page.locator('text=/Helpfulness \\(\\d+\\)/').textContent()
+
+    console.log('Statistics before paragraph edit:', {
+      critical: criticalStatBefore,
+      moderate: moderateStatBefore,
+      actionability: actionabilityStatBefore,
+      helpfulness: helpfulnessStatBefore
+    })
+
+    // Step 5: Delete and re-paste a paragraph (simulating the reported bug scenario)
+    // Get current text, delete a paragraph, and re-add it
+    const originalText = await textarea.inputValue()
+    const paragraphs = originalText.split('\n\n')
+
+    if (paragraphs.length >= 2) {
+      // Remove the second paragraph and add it back at the end
+      const removedParagraph = paragraphs.splice(1, 1)[0]
+      paragraphs.push(removedParagraph)
+      const modifiedText = paragraphs.join('\n\n')
+
+      await textarea.fill(modifiedText)
+
+      // Wait a moment for autosave to trigger
+      await page.waitForTimeout(1000)
+    }
+
+    // Step 6: Navigate to My Reviews (without clicking UPDATE again)
+    await page.click(`text=${testEmail}`)
+    await page.click('text=My Reviews')
+
+    await expect(page.locator('h2:has-text("My Reviews")')).toBeVisible({ timeout: 5000 })
+
+    // Step 7: Click on the review to return to it
+    const reviewButton = page.locator('button').filter({ hasText: /\d+ words/ }).first()
+    await expect(reviewButton).toBeVisible({ timeout: 5000 })
+    await reviewButton.click()
+
+    await expect(textarea).toBeVisible({ timeout: 5000 })
+
+    // Wait for comments to load
+    await page.waitForTimeout(2000)
+
+    // Step 8: Verify statistics (they might differ if paragraph IDs changed)
+    const criticalStatAfter = await page.locator('text=/Critical \\(\\d+\\)/').textContent()
+    const moderateStatAfter = await page.locator('text=/Moderate \\(\\d+\\)/').textContent()
+    const actionabilityStatAfter = await page.locator('text=/Actionability \\(\\d+\\)/').textContent()
+    const helpfulnessStatAfter = await page.locator('text=/Helpfulness \\(\\d+\\)/').textContent()
+
+    console.log('Statistics after paragraph edit and navigation:', {
+      critical: criticalStatAfter,
+      moderate: moderateStatAfter,
+      actionability: actionabilityStatAfter,
+      helpfulness: helpfulnessStatAfter
+    })
+
+    // In the bug scenario, statistics would differ. After fix, they should match.
+    // For now, we just log the values to observe the behavior
+    expect(criticalStatAfter).toBe(criticalStatBefore)
+    expect(moderateStatAfter).toBe(moderateStatBefore)
+    expect(actionabilityStatAfter).toBe(actionabilityStatBefore)
+    expect(helpfulnessStatAfter).toBe(helpfulnessStatBefore)
+  })
 })

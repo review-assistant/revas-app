@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { getComments } from './commentsClient.js';
 import { supabase } from './supabaseClient.js';
 import { useAuth } from './AuthContext.jsx';
@@ -44,8 +44,6 @@ const calculateSimilarity = (text1, text2) => {
 const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }, ref) => {
   const { signOut } = useAuth();
   const [reviewText, setReviewText] = useState('');
-  const [originalText, setOriginalText] = useState('');
-  const [isModified, setIsModified] = useState(false)
   const [openCommentBar, setOpenCommentBar] = useState(null); // Start with no comment bar open
   const [paragraphPositions, setParagraphPositions] = useState({});
   const [scrollTop, setScrollTop] = useState(0);
@@ -70,6 +68,13 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
   // Track dismissed comments by paragraph ID and label
   const [dismissedComments, setDismissedComments] = useState({}); // {paragraphId: Set(['Actionability', ...])}
+
+  // Derived state: true if any paragraph is modified or new
+  const isModified = useMemo(() => {
+    return paragraphsWithIds.some(p =>
+      p.originalContent !== p.currentContent || p.originalContent === ''
+    );
+  }, [paragraphsWithIds]);
 
   // Persistence state
   const [reviewId, setReviewId] = useState(null);
@@ -207,22 +212,14 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
   // Update paragraph IDs when text changes
   useEffect(() => {
     const newParagraphTexts = getParagraphs(reviewText);
-    console.log('Paragraph update effect:', {
-      reviewTextLength: reviewText.length,
-      newParagraphCount: newParagraphTexts.length,
-      currentParagraphsWithIds: paragraphsWithIds.length,
-      newParagraphTexts: newParagraphTexts
-    });
 
     // If starting from empty, create all new paragraphs
     if (paragraphsWithIds.length === 0 && newParagraphTexts.length > 0) {
-      console.log('Creating new paragraphs from empty state');
       const newParagraphs = newParagraphTexts.map((content, index) => ({
         id: nextParagraphIdRef.current++,
         originalContent: '', // Empty to indicate new paragraph
         currentContent: content
       }));
-      console.log('New paragraphs created:', newParagraphs);
       setParagraphsWithIds(newParagraphs);
       return;
     }
@@ -230,7 +227,6 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
     // If no paragraphs exist anymore, keep scored paragraph data but clear current content
     // This allows matching when text is pasted back
     if (newParagraphTexts.length === 0) {
-      console.log('Text cleared - preserving scored paragraph data for matching');
       if (paragraphsWithIds.some(p => p.originalContent)) {
         // Keep paragraphs that have scored versions (originalContent)
         // Set currentContent to empty
@@ -269,7 +265,16 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       };
     });
 
+    // Close comment bar if its paragraph was deleted
+    if (openCommentBar !== null) {
+      const paragraphStillExists = updated.some(p => p.id === openCommentBar);
+      if (!paragraphStillExists) {
+        setOpenCommentBar(null);
+      }
+    }
+
     setParagraphsWithIds(updated);
+    // isModified is now derived from paragraphsWithIds via useMemo
   }, [reviewText]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Parse text into blocks, tracking paragraph positions while preserving all content
@@ -363,6 +368,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
   // Update paragraph positions when text changes (including blank line insertions) or on scroll
   // Using useLayoutEffect to ensure DOM is measured after updates but before paint
   // Also recalculate when comments arrive (commentsByParagraphId changes) to ensure bars render
+  // IMPORTANT: Must depend on paragraphsWithIds to recalculate after paragraph IDs change (e.g., deletion)
   useLayoutEffect(() => {
     if (hiddenTextRef.current) {
       const elements = hiddenTextRef.current.querySelectorAll('[data-paragraph-id]');
@@ -382,7 +388,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
       setParagraphPositions(positions);
     }
-  }, [reviewText, scrollTop, resizeCounter, reviewTextWidth, commentsByParagraphId]);
+  }, [reviewText, scrollTop, resizeCounter, reviewTextWidth, commentsByParagraphId, paragraphsWithIds]);
 
   // Auto-resize textarea (when text changes or width changes)
   useEffect(() => {
@@ -464,7 +470,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
   const handleTextChange = (e) => {
     setReviewText(e.target.value);
-    setIsModified(e.target.value !== originalText);
+    // isModified is derived from paragraphsWithIds - updates automatically
   };
 
   const handleScroll = (e) => {
@@ -532,7 +538,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       setParagraphsWithIds([]);
       setCommentsByParagraphId({});
       setDismissedComments({});
-      setIsModified(false);
+      // isModified becomes false automatically (derived from empty paragraphsWithIds)
       setOpenCommentBar(null);
       setReviewId(null);
       setPaperId(null);
@@ -557,7 +563,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
     setParagraphsWithIds([]);
     setCommentsByParagraphId({});
     setDismissedComments({});
-    setIsModified(false);
+    // isModified becomes false automatically (derived from empty paragraphsWithIds)
     setOpenCommentBar(null);
 
     if (currentReview.isNewReview) {
@@ -706,7 +712,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       // If initial text was provided (e.g., from dev sample data), populate it
       if (initialText) {
         setReviewText(initialText);
-        setIsModified(true);
+        // isModified becomes true automatically (paragraphs have empty originalContent)
       }
 
       setIsInitialized(true);
@@ -733,11 +739,8 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
       if (reviewError) throw reviewError;
 
-      console.log('loadReviewData: review loaded from DB:', review);
-
       if (!review) {
         // No existing review content, start fresh
-        console.log('No existing review content found');
         return;
       }
 
@@ -746,11 +749,6 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
       // Set current review text from draft_content (or empty if none)
       const draftContent = review.draft_content || '';
-      console.log('Draft content loaded:', {
-        length: draftContent.length,
-        wordCount: draftContent.trim().split(/\s+/).length,
-        preview: draftContent.substring(0, 100)
-      });
 
       // Build lookup maps for scored paragraphs (by paragraph_id)
       const scoredParagraphsMap = {};
@@ -810,26 +808,16 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       // Use smart matching: exact first, then fuzzy with high threshold
       const usedScoredParagraphs = new Set();
 
-      // Debug: Log available DB paragraphs
-      console.log('DB paragraphs available for matching:', review.paragraphs?.length || 0);
-      review.paragraphs?.forEach((p, i) => {
-        console.log(`  DB[${i}] id=${p.paragraph_id}: "${p.content?.substring(0, 50)}..."`);
-      });
+      // Helper to normalize text for comparison (trim whitespace)
+      const normalize = (s) => s?.trim() || '';
 
       const paragraphsWithIds = currentParagraphTexts.map((text, index) => {
-        console.log(`\n=== Matching paragraph ${index} ===`);
-        console.log('Current text:', `"${text.substring(0, 100)}..."`);
-
-        // Helper to normalize text for comparison (trim whitespace)
-        const normalize = (s) => s?.trim() || '';
-
         // Phase 1: Try exact content match first
         const exactMatch = review.paragraphs?.find(p =>
           !usedScoredParagraphs.has(p.paragraph_id) && p.content === text
         );
 
         if (exactMatch) {
-          console.log(`✓ Exact match found: paragraph_id=${exactMatch.paragraph_id}`);
           usedScoredParagraphs.add(exactMatch.paragraph_id);
           return {
             id: exactMatch.paragraph_id,
@@ -844,7 +832,6 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
         );
 
         if (normalizedMatch) {
-          console.log(`✓ Normalized match found: paragraph_id=${normalizedMatch.paragraph_id}`);
           usedScoredParagraphs.add(normalizedMatch.paragraph_id);
           return {
             id: normalizedMatch.paragraph_id,
@@ -852,8 +839,6 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
             currentContent: text
           };
         }
-
-        console.log('No exact match, trying fuzzy...');
 
         // Phase 2: Try fuzzy match using cosine similarity
         let bestMatch = null;
@@ -864,9 +849,6 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
           const score = calculateSimilarity(text, p.content);
 
-          console.log(`  Checking against paragraph_id=${p.paragraph_id}: cosine=${score.toFixed(3)}`);
-          console.log(`    DB text: ${p.content.substring(0, 100)}`);
-
           if (score > bestScore && score > PARAGRAPH_MATCH_THRESHOLD) {
             bestScore = score;
             bestMatch = p;
@@ -874,7 +856,6 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
         });
 
         if (bestMatch) {
-          console.log(`✓ Fuzzy match found: paragraph_id=${bestMatch.paragraph_id}, cosine=${bestScore.toFixed(3)}`);
           usedScoredParagraphs.add(bestMatch.paragraph_id);
           return {
             id: bestMatch.paragraph_id,
@@ -885,7 +866,6 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
         // No match - treat as new paragraph
         const newId = nextParagraphIdRef.current++;
-        console.log(`✗ No match found, creating new paragraph with id=${newId}`);
         return {
           id: newId,
           originalContent: '', // Empty = new paragraph
@@ -893,22 +873,12 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
         };
       });
 
-      console.log('Review data loaded successfully', {
-        draftLength: draftContent.length,
-        scoredParagraphs: review.paragraphs?.length || 0,
-        currentParagraphs: paragraphsWithIds.length,
-        comments: Object.keys(commentsData).length
-      });
-
       // Set all state at once
       setReviewText(draftContent);
       setParagraphsWithIds(paragraphsWithIds);
       setCommentsByParagraphId(commentsData);
       setDismissedComments(dismissedCommentsData);
-
-      // Set isModified if any paragraph has changed or is new
-      const hasChanges = paragraphsWithIds.some(p => p.originalContent !== p.currentContent || p.originalContent === '');
-      setIsModified(hasChanges);
+      // isModified is derived from paragraphsWithIds via useMemo - no need to set it
 
     } catch (error) {
       console.error('Error loading review data:', error);
@@ -994,6 +964,9 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
     }
 
     try {
+      // Debug: Log incoming comment data
+      console.log('saveScores received commentData for paragraphs:', Object.keys(commentData));
+
       // Transform comment data to scores format
       const scores = [];
 
@@ -1016,8 +989,13 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       });
 
       if (scores.length === 0) {
+        console.log('saveScores: No scores to save');
         return; // No scores to save
       }
+
+      // Debug: Log scores being saved
+      const paragraphsWithScores = [...new Set(scores.map(s => s.paragraph_id))];
+      console.log(`saveScores: Saving ${scores.length} scores for ${paragraphsWithScores.length} paragraphs:`, paragraphsWithScores);
 
       // Call save_review_scores RPC function
       const { error } = await supabase.rpc('save_review_scores', {
@@ -1100,6 +1078,9 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
         }
       });
 
+      // Debug: Log API response
+      console.log('[BACKEND] API returned comments for paragraphs:', Object.keys(commentResults));
+
       // Check if this request is still current (not cancelled or superseded)
       if (requestId !== currentRequestIdRef.current) {
         console.log('Ignoring results from stale request #' + requestId + ' (current is #' + currentRequestIdRef.current + ')');
@@ -1175,7 +1156,6 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       // Add new comments (only for paragraphs that have non-'none' items)
       Object.assign(updatedComments, newComments);
 
-      console.log('Setting comments in UI:', updatedComments);
       setCommentsByParagraphId(updatedComments);
 
       // Create version from draft FIRST (create scored snapshot)
@@ -1202,15 +1182,13 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
         ...p,
         originalContent: p.currentContent
       }));
-      console.log('Updating paragraphs after UPDATE:', updatedParagraphs);
       setParagraphsWithIds(updatedParagraphs);
 
       // Store current paragraphs for comparison
       setLastUpdateParagraphs(getParagraphs(reviewText));
 
-      // Update original text and deactivate button
-      setOriginalText(reviewText);
-      setIsModified(false);
+      // isModified is now derived from paragraph state - it becomes false
+      // automatically when originalContent is set to currentContent above
     } catch (error) {
       // Handle errors from getComments API
       console.error('Error getting comments:', error);
