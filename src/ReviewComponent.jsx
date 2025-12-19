@@ -810,9 +810,18 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       // Use smart matching: exact first, then fuzzy with high threshold
       const usedScoredParagraphs = new Set();
 
+      // Debug: Log available DB paragraphs
+      console.log('DB paragraphs available for matching:', review.paragraphs?.length || 0);
+      review.paragraphs?.forEach((p, i) => {
+        console.log(`  DB[${i}] id=${p.paragraph_id}: "${p.content?.substring(0, 50)}..."`);
+      });
+
       const paragraphsWithIds = currentParagraphTexts.map((text, index) => {
         console.log(`\n=== Matching paragraph ${index} ===`);
-        console.log('Current text:', text.substring(0, 100));
+        console.log('Current text:', `"${text.substring(0, 100)}..."`);
+
+        // Helper to normalize text for comparison (trim whitespace)
+        const normalize = (s) => s?.trim() || '';
 
         // Phase 1: Try exact content match first
         const exactMatch = review.paragraphs?.find(p =>
@@ -825,6 +834,21 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
           return {
             id: exactMatch.paragraph_id,
             originalContent: exactMatch.content || '',
+            currentContent: text
+          };
+        }
+
+        // Phase 1b: Try normalized exact match (handles whitespace differences)
+        const normalizedMatch = review.paragraphs?.find(p =>
+          !usedScoredParagraphs.has(p.paragraph_id) && normalize(p.content) === normalize(text)
+        );
+
+        if (normalizedMatch) {
+          console.log(`✓ Normalized match found: paragraph_id=${normalizedMatch.paragraph_id}`);
+          usedScoredParagraphs.add(normalizedMatch.paragraph_id);
+          return {
+            id: normalizedMatch.paragraph_id,
+            originalContent: normalizedMatch.content || '',
             currentContent: text
           };
         }
