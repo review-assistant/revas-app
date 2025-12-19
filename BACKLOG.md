@@ -33,18 +33,8 @@ Paused work items intended for future development.
 - [x] **Stale comments for edited paragraphs** - ~~If user edits text while API call is in flight, returned comments are for old content but get associated with current paragraph IDs.~~
   - ADDRESSED: Textarea is now read-only during UPDATE (`isUpdating`), preventing edits while API call is in flight
 
-- [ ] **Paragraph ID drift during edits** ⚠️ HIGH PRIORITY - Paragraphs naturally evolve over the course of user edits and UPDATE cycles. The fuzzy matcher must reliably track paragraph identity through:
-  - Minor text edits (typos, word changes)
-  - Sentence additions/removals within a paragraph
-  - Paragraph splits and merges
-  - Copy/paste of modified content
-
-  **Current issue: Inconsistent thresholds**
-  - `matchParagraphs()` at line 169 uses **50%** Jaccard similarity
-  - `loadReviewData()` at line 805 uses **70%** Jaccard similarity
-  - These should be unified and possibly replaced with character edit-distance metric for more reliable tracking
-
-  Risk: Comments and scores could become associated with wrong paragraphs, breaking the user's editing flow
+- [x] **Paragraph ID drift during edits** - ~~Paragraphs naturally evolve over the course of user edits and UPDATE cycles. The fuzzy matcher must reliably track paragraph identity.~~
+  - ADDRESSED: Unified both matchers to use cosine similarity with shared `PARAGRAPH_MATCH_THRESHOLD` (0.7). Added `calculateSimilarity()` utility function used by both `matchParagraphs()` and `loadReviewData()`.
 
 - [ ] **Interleaved progress callbacks** - Multiple concurrent requests could mix progress updates in the UI.
   - Location: `ReviewComponent.jsx:1018-1026`

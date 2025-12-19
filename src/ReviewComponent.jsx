@@ -26,6 +26,21 @@ const scoreToSeverity = (score) => {
   return 'none';
 };
 
+// Paragraph matching configuration
+const PARAGRAPH_MATCH_THRESHOLD = 0.7; // 70% cosine similarity required for fuzzy match
+
+// Calculate cosine similarity between two text strings (bag-of-words)
+const calculateSimilarity = (text1, text2) => {
+  const words1 = new Set(text1.toLowerCase().split(/\s+/).filter(w => w.length > 0));
+  const words2 = new Set(text2.toLowerCase().split(/\s+/).filter(w => w.length > 0));
+
+  if (words1.size === 0 && words2.size === 0) return 1; // Both empty = identical
+  if (words1.size === 0 || words2.size === 0) return 0; // One empty = no match
+
+  const intersection = [...words1].filter(w => words2.has(w)).length;
+  return intersection / Math.sqrt(words1.size * words2.size); // Cosine similarity
+};
+
 const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }, ref) => {
   const { signOut } = useAuth();
   const [reviewText, setReviewText] = useState('');
@@ -158,23 +173,19 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       }
     }
 
-    // Phase 2: Bag-of-words matches
+    // Phase 2: Fuzzy matches using cosine similarity
     for (let i = unmatchedNewIndices.length - 1; i >= 0; i--) {
       const newIndex = unmatchedNewIndices[i];
       const newText = newParagraphTexts[newIndex];
-      const newWords = new Set(newText.toLowerCase().split(/\s+/).filter(w => w.length > 0));
 
       let bestMatch = null;
-      let bestOverlap = 0;
+      let bestScore = 0;
 
       for (const saved of unmatchedSaved) {
-        const savedWords = new Set(saved.currentContent.toLowerCase().split(/\s+/).filter(w => w.length > 0));
-        const intersection = new Set([...newWords].filter(w => savedWords.has(w)));
-        const union = new Set([...newWords, ...savedWords]);
-        const overlapRatio = union.size > 0 ? intersection.size / union.size : 0;
+        const score = calculateSimilarity(newText, saved.currentContent);
 
-        if (overlapRatio > 0.5 && overlapRatio > bestOverlap) {
-          bestOverlap = overlapRatio;
+        if (score > PARAGRAPH_MATCH_THRESHOLD && score > bestScore) {
+          bestScore = score;
           bestMatch = saved;
         }
       }
@@ -820,30 +831,26 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
         console.log('No exact match, trying fuzzy...');
 
-        // Phase 2: Try fuzzy match with lower threshold (>70% word overlap)
-        // This catches minor edits like single character changes
+        // Phase 2: Try fuzzy match using cosine similarity
         let bestMatch = null;
         let bestScore = 0;
 
         review.paragraphs?.forEach(p => {
           if (usedScoredParagraphs.has(p.paragraph_id)) return;
 
-          const words1 = new Set(text.toLowerCase().split(/\s+/));
-          const words2 = new Set(p.content.toLowerCase().split(/\s+/));
-          const overlap = [...words1].filter(w => words2.has(w)).length;
-          const score = overlap / Math.max(words1.size, words2.size);
+          const score = calculateSimilarity(text, p.content);
 
-          console.log(`  Checking against paragraph_id=${p.paragraph_id}: score=${score.toFixed(3)} (${overlap}/${Math.max(words1.size, words2.size)})`);
+          console.log(`  Checking against paragraph_id=${p.paragraph_id}: cosine=${score.toFixed(3)}`);
           console.log(`    DB text: ${p.content.substring(0, 100)}`);
 
-          if (score > bestScore && score > 0.7) {  // 70% threshold
+          if (score > bestScore && score > PARAGRAPH_MATCH_THRESHOLD) {
             bestScore = score;
             bestMatch = p;
           }
         });
 
         if (bestMatch) {
-          console.log(`✓ Fuzzy match found: paragraph_id=${bestMatch.paragraph_id}, score=${bestScore.toFixed(3)}`);
+          console.log(`✓ Fuzzy match found: paragraph_id=${bestMatch.paragraph_id}, cosine=${bestScore.toFixed(3)}`);
           usedScoredParagraphs.add(bestMatch.paragraph_id);
           return {
             id: bestMatch.paragraph_id,
