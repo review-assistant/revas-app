@@ -21,17 +21,18 @@ test.describe('Review Component', () => {
     await page.check('input[type="checkbox"]')
     await page.click('button:has-text("Sign up")')
 
-    await expect(page.locator(`text=${testEmail}`)).toBeVisible({ timeout: 10000 })
+    // Longer timeout for slow networks
+    await expect(page.locator(`text=${testEmail}`)).toBeVisible({ timeout: 30000 })
 
     // After login, My Reviews modal should appear
-    await expect(page.locator('text=My Reviews')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('text=My Reviews')).toBeVisible({ timeout: 15000 })
 
     // Create a new review by clicking the create button
     // The button will say "Create Review-1" for first review
     await page.click('button:has-text("Create")')
 
     // Wait for review editor to appear
-    await expect(page.locator('textarea')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('textarea')).toBeVisible({ timeout: 15000 })
   }
 
   test.beforeEach(async ({ page }) => {
