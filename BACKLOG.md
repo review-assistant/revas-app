@@ -10,8 +10,8 @@ Paused work items intended for future development.
 
 ### 1. Save/Autosave Race Conditions
 
-- [ ] **Concurrent save operations** - No mutex on `saveReviewDraft()`. If autosave timer fires while UPDATE is running, both could write simultaneously causing out-of-order database updates.
-  - Location: `ReviewComponent.jsx:854-891` (saveReviewDraft), `961-1152` (handleUpdate)
+- [x] **Concurrent save operations** - ~~No mutex on `saveReviewDraft()`. If autosave timer fires while UPDATE is running, both could write simultaneously causing out-of-order database updates.~~
+  - ADDRESSED: Added `isSavingRef` mutex to prevent concurrent saves. Autosave callback checks `isUpdatingRef` at execution time and skips if UPDATE is in progress.
 
 - [ ] **Fire-and-forget unmount save** - Component unmount calls `saveReviewDraft` but doesn't await completion. Fast navigation could lose data.
   - Location: `ReviewComponent.jsx:899-912`

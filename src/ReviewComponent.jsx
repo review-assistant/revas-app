@@ -78,6 +78,8 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
   const currentRequestIdRef = useRef(0);
   const commentTextRef = useRef(null);
   const isInitializingRef = useRef(false); // Guard against StrictMode double-execution
+  const isSavingRef = useRef(false); // Mutex to prevent concurrent saves
+  const isUpdatingRef = useRef(false); // Ref for checking in timer callbacks
 
   // Keep ref in sync with state to avoid closure issues
   useEffect(() => {
@@ -87,6 +89,10 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
   useEffect(() => {
     reviewTextRef.current = reviewText;
   }, [reviewText]);
+
+  useEffect(() => {
+    isUpdatingRef.current = isUpdating;
+  }, [isUpdating]);
 
   // Initialize paragraph IDs on first render
   useEffect(() => {
@@ -571,9 +577,9 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
   const autosaveTimerRef = useRef(null);
 
   useEffect(() => {
-    console.log('Autosave effect triggered:', { reviewId, isModified, isLocked, hasTimer: !!autosaveTimerRef.current });
+    console.log('Autosave effect triggered:', { reviewId, isModified, isLocked, isUpdating, hasTimer: !!autosaveTimerRef.current });
 
-    if (!reviewId || !isModified || isLocked) {
+    if (!reviewId || !isModified || isLocked || isUpdating) {
       console.log('Autosave: conditions not met, skipping');
       return;
     }
@@ -582,6 +588,12 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
     if (!autosaveTimerRef.current) {
       console.log('Autosave: starting 30-second timer');
       autosaveTimerRef.current = setTimeout(() => {
+        // Double-check conditions at execution time (UPDATE may have started)
+        if (isUpdatingRef.current) {
+          console.log('Autosave: skipping, UPDATE in progress');
+          autosaveTimerRef.current = null;
+          return;
+        }
         console.log('Autosave: timer expired, saving now');
         saveReviewDraft();
         autosaveTimerRef.current = null;
@@ -593,7 +605,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
     return () => {
       // Don't clear the timer on every render, only on unmount
     };
-  }, [reviewText, reviewId, isModified, isLocked]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [reviewText, reviewId, isModified, isLocked, isUpdating]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize or load review
   const initializeReview = async () => {
@@ -879,6 +891,13 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       return;
     }
 
+    // Mutex: prevent concurrent saves
+    if (isSavingRef.current) {
+      console.log('Skipping save: another save is in progress');
+      return;
+    }
+    isSavingRef.current = true;
+
     const startTime = Date.now();
 
     try {
@@ -909,6 +928,8 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
     } catch (error) {
       console.error('Error saving draft:', error);
       setSavingStatus('error');
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
