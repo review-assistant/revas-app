@@ -81,6 +81,89 @@ Paused work items intended for future development.
 - Reports could be admin-only dashboard or exportable CSV
 - Consider privacy implications - aggregate vs per-user reporting
 
+### Session Data & Reporting Pipeline
+
+*Unified JSON format for synthetic and real data. Reports operate on JSON files, not direct DB queries.*
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Generate       │     │  sessions.json  │     │  Interaction    │
+│  Synthetic      │────▶│  (unified       │◀────│  Report         │
+│  Sessions       │     │   format)       │     │  Generator      │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                               ▲
+┌─────────────────┐            │
+│  Export from    │────────────┘
+│  Database       │
+└─────────────────┘
+```
+
+#### Interaction Model
+
+- **Scores**: 4 dimensions per paragraph (Actionability, Helpfulness, Grounding, Verifiability)
+- **View**: User opens comment bar → sees all dimension scores for that paragraph (paragraph-level)
+- **Edit**: User modifies paragraph text → resubmit → new version with all dimensions re-scored (paragraph-level)
+- **Dismiss**: User dismisses one dimension's comment (dimension-level)
+
+#### Scripts
+
+- [x] **Generate synthetic sessions** - `scripts/generate-synthetic-sessions.js`
+  - Simulates: submit review → loop (view paragraph, then edit or dismiss dimension) → until done
+  - Run: `npm run generate:sessions -- --sessions=50 --seed=12345`
+
+- [ ] **Export database to JSON** - `scripts/export-sessions.js`
+  - Exports real sessions from Supabase into same JSON format
+  - Anonymizes user IDs; includes all versions, scores, interactions
+  - Run: `npm run export:sessions -- --output=real-sessions.json`
+
+- [ ] **Generate interaction report** - `scripts/generate-interaction-report.js`
+  - Reads sessions JSON (synthetic or real)
+  - Computes: viewing rates, edit vs dismiss ratios, score improvements, completion rates
+  - Outputs: console summary, CSV, or JSON
+
+#### JSON Format
+
+```json
+{
+  "metadata": { "source": "synthetic|database", "generated_at", "summary" },
+  "sessions": [{
+    "paper": { "id", "title", "conference" },
+    "review": {
+      "versions": [{
+        "version": 1,
+        "paragraphs": [{ "paragraph_id": 0, "content": "..." }],
+        "scores": [{
+          "paragraph_id": 0,
+          "Actionability": { "score": 3, "comment": "..." },
+          "Helpfulness": { "score": 4, "comment": "..." },
+          "Grounding": { "score": 2, "comment": "..." },
+          "Verifiability": { "score": 5, "comment": "..." }
+        }]
+      }],
+      "interactions": [
+        // View: paragraph-level (user opens comment bar, sees all dimensions)
+        { "type": "view", "paragraph_id": 0, "version": 1, "timestamp": "..." },
+        // Edit: paragraph-level (creates new version, all dimensions re-scored)
+        { "type": "edit", "paragraph_id": 0, "from_version": 1, "to_version": 2, "timestamp": "..." },
+        // Dismiss: dimension-level (user dismisses specific dimension's comment)
+        { "type": "dismiss", "paragraph_id": 0, "dimension": "Actionability", "version": 1, "timestamp": "..." }
+      ]
+    }
+  }]
+}
+```
+
+Usage:
+```bash
+# Development workflow
+npm run generate:sessions -- --sessions=100 --seed=12345
+npm run report:interactions -- --input=synthetic-sessions.json
+
+# Production workflow
+npm run export:sessions -- --output=real-sessions.json
+npm run report:interactions -- --input=real-sessions.json
+```
+
 ---
 
 ## Training Permissions (Paper & Review Tables)
