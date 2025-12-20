@@ -61,11 +61,11 @@ Paused work items intended for future development.
 
 ### Data Collection (Prerequisites)
 
-- [ ] **Wire UI to track_interaction RPC** - The database has `track_interaction` function and `review_item_interactions` table ready. Need to call from UI:
+- [x] **Wire UI to track_interaction RPC** - The database has `track_interaction` function and `review_item_interactions` table ready. Need to call from UI:
   - Call `track_interaction(..., 'view')` when comment bar opens (`setOpenCommentBar`)
   - Call `track_interaction(..., 'dismiss')` when comment is dismissed (`handleDismissComment`)
   - Location: `ReviewComponent.jsx` - search for `setOpenCommentBar` and `handleDismissComment`
-- [ ] **Track score changes between versions** - Compare scores before/after text edits (can be computed from `review_item_scores` joined across versions)
+- [x] **Track score changes between versions** - Compare scores before/after text edits (can be computed from `review_item_scores` joined across versions)
 
 ### Report Generation
 

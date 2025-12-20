@@ -118,6 +118,8 @@ function calculateSessionStats(sessions) {
 
 /**
  * Calculate interaction type breakdown
+ * Note: These are raw counts, not mutually exclusive categories.
+ * Views precede actions; dismissals are per-dimension; edits are per-paragraph.
  */
 function calculateInteractionBreakdown(sessions) {
   const breakdown = {
@@ -153,67 +155,81 @@ function calculateInteractionBreakdown(sessions) {
     }
   }
 
-  const total = breakdown.views + breakdown.edits + breakdown.dismissals;
-  breakdown.view_rate = total > 0 ? (breakdown.views / total * 100).toFixed(1) : '0.0';
-  breakdown.edit_rate = total > 0 ? (breakdown.edits / total * 100).toFixed(1) : '0.0';
-  breakdown.dismiss_rate = total > 0 ? (breakdown.dismissals / total * 100).toFixed(1) : '0.0';
+  // Calculate avg dismissals per edit (since both can happen for same paragraph)
+  breakdown.avg_dismissals_per_edit = breakdown.edits > 0
+    ? (breakdown.dismissals / breakdown.edits).toFixed(2)
+    : '0.00';
 
   return breakdown;
 }
 
 /**
  * Analyze what happens after viewing a comment
+ * Categories are mutually exclusive:
+ * - edit_only: edited but no dismissals before next view/end
+ * - dismiss_only: dismissed (1+ dimensions) but no edit
+ * - edit_and_dismiss: both edited and dismissed
+ * - nothing: no action before next view or session end
  */
 function calculatePostViewBehavior(sessions) {
   const behavior = {
-    view_then_edit: 0,
-    view_then_dismiss: 0,
-    view_only: 0,
+    edit_only: 0,
+    dismiss_only: 0,
+    edit_and_dismiss: 0,
+    nothing: 0,
     total_views: 0,
   };
 
   for (const session of sessions) {
     const interactions = session.review?.interactions || [];
 
-    // Find all view interactions and what follows them
+    // Find all view interactions and analyze what follows each
     for (let i = 0; i < interactions.length; i++) {
       const current = interactions[i];
       if (current.type !== 'view') continue;
 
       behavior.total_views++;
 
-      // Look for next interaction on same paragraph
-      let foundFollowUp = false;
+      // Look for all actions on same paragraph before next view or end
+      let hasEdit = false;
+      let hasDismiss = false;
+
       for (let j = i + 1; j < interactions.length; j++) {
         const next = interactions[j];
+
+        // Stop at next view of same paragraph (new viewing session)
+        if (next.type === 'view' && next.paragraph_id === current.paragraph_id) {
+          break;
+        }
+
         if (next.paragraph_id === current.paragraph_id) {
           if (next.type === 'edit') {
-            behavior.view_then_edit++;
-            foundFollowUp = true;
-            break;
+            hasEdit = true;
           } else if (next.type === 'dismiss') {
-            behavior.view_then_dismiss++;
-            foundFollowUp = true;
-            break;
+            hasDismiss = true;
           }
         }
       }
 
-      if (!foundFollowUp) {
-        behavior.view_only++;
+      // Categorize the outcome
+      if (hasEdit && hasDismiss) {
+        behavior.edit_and_dismiss++;
+      } else if (hasEdit) {
+        behavior.edit_only++;
+      } else if (hasDismiss) {
+        behavior.dismiss_only++;
+      } else {
+        behavior.nothing++;
       }
     }
   }
 
-  behavior.edit_after_view_rate = behavior.total_views > 0
-    ? (behavior.view_then_edit / behavior.total_views * 100).toFixed(1)
-    : '0.0';
-  behavior.dismiss_after_view_rate = behavior.total_views > 0
-    ? (behavior.view_then_dismiss / behavior.total_views * 100).toFixed(1)
-    : '0.0';
-  behavior.no_action_rate = behavior.total_views > 0
-    ? (behavior.view_only / behavior.total_views * 100).toFixed(1)
-    : '0.0';
+  // Calculate rates
+  const total = behavior.total_views;
+  behavior.edit_only_rate = total > 0 ? (behavior.edit_only / total * 100).toFixed(1) : '0.0';
+  behavior.dismiss_only_rate = total > 0 ? (behavior.dismiss_only / total * 100).toFixed(1) : '0.0';
+  behavior.edit_and_dismiss_rate = total > 0 ? (behavior.edit_and_dismiss / total * 100).toFixed(1) : '0.0';
+  behavior.nothing_rate = total > 0 ? (behavior.nothing / total * 100).toFixed(1) : '0.0';
 
   return behavior;
 }
@@ -394,11 +410,11 @@ function formatConsoleReport(report) {
   lines.push('');
 
   // Interaction Breakdown
-  lines.push('INTERACTION BREAKDOWN');
+  lines.push('INTERACTION COUNTS');
   lines.push('─'.repeat(40));
-  lines.push(`  Views:      ${report.interaction_breakdown.views} (${report.interaction_breakdown.view_rate}%)`);
-  lines.push(`  Edits:      ${report.interaction_breakdown.edits} (${report.interaction_breakdown.edit_rate}%)`);
-  lines.push(`  Dismissals: ${report.interaction_breakdown.dismissals} (${report.interaction_breakdown.dismiss_rate}%)`);
+  lines.push(`  Views:      ${report.interaction_breakdown.views}`);
+  lines.push(`  Edits:      ${report.interaction_breakdown.edits}`);
+  lines.push(`  Dismissals: ${report.interaction_breakdown.dismissals} (avg ${report.interaction_breakdown.avg_dismissals_per_edit}/edit)`);
   lines.push('');
   lines.push('  Dismissals by dimension:');
   for (const dim of DIMENSIONS) {
@@ -410,10 +426,11 @@ function formatConsoleReport(report) {
   // Post-View Behavior
   lines.push('POST-VIEW BEHAVIOR');
   lines.push('─'.repeat(40));
-  lines.push(`  After viewing a comment:`);
-  lines.push(`    → Edit:    ${report.post_view_behavior.view_then_edit} (${report.post_view_behavior.edit_after_view_rate}%)`);
-  lines.push(`    → Dismiss: ${report.post_view_behavior.view_then_dismiss} (${report.post_view_behavior.dismiss_after_view_rate}%)`);
-  lines.push(`    → Nothing: ${report.post_view_behavior.view_only} (${report.post_view_behavior.no_action_rate}%)`);
+  lines.push(`  After viewing (${report.post_view_behavior.total_views} views):`);
+  lines.push(`    → Edit only:        ${report.post_view_behavior.edit_only} (${report.post_view_behavior.edit_only_rate}%)`);
+  lines.push(`    → Dismiss only:     ${report.post_view_behavior.dismiss_only} (${report.post_view_behavior.dismiss_only_rate}%)`);
+  lines.push(`    → Edit + Dismiss:   ${report.post_view_behavior.edit_and_dismiss} (${report.post_view_behavior.edit_and_dismiss_rate}%)`);
+  lines.push(`    → Nothing:          ${report.post_view_behavior.nothing} (${report.post_view_behavior.nothing_rate}%)`);
   lines.push('');
 
   // Score Improvements
@@ -446,8 +463,8 @@ function formatConsoleReport(report) {
   }
   lines.push('');
 
-  // Final Score Distribution
-  lines.push('FINAL SCORE DISTRIBUTION');
+  // Finished Review Score Distribution
+  lines.push('FINISHED REVIEW SCORE DISTRIBUTION');
   lines.push('─'.repeat(40));
   lines.push(`  Perfect score rate (5): ${report.final_score_distribution.perfect_score_rate}%`);
   lines.push('');
@@ -481,19 +498,22 @@ function formatCSVReport(report) {
   lines.push(`Session Stats,Avg Versions/Session,${report.session_stats.avg_versions_per_session}`);
   lines.push(`Session Stats,Avg Interactions/Session,${report.session_stats.avg_interactions_per_session}`);
 
-  // Interaction Breakdown
+  // Interaction Counts
   lines.push(`Interactions,Views,${report.interaction_breakdown.views}`);
   lines.push(`Interactions,Edits,${report.interaction_breakdown.edits}`);
   lines.push(`Interactions,Dismissals,${report.interaction_breakdown.dismissals}`);
-  lines.push(`Interactions,View Rate %,${report.interaction_breakdown.view_rate}`);
-  lines.push(`Interactions,Edit Rate %,${report.interaction_breakdown.edit_rate}`);
-  lines.push(`Interactions,Dismiss Rate %,${report.interaction_breakdown.dismiss_rate}`);
+  lines.push(`Interactions,Avg Dismissals/Edit,${report.interaction_breakdown.avg_dismissals_per_edit}`);
 
   // Post-View Behavior
-  lines.push(`Post-View,Edit After View,${report.post_view_behavior.view_then_edit}`);
-  lines.push(`Post-View,Dismiss After View,${report.post_view_behavior.view_then_dismiss}`);
-  lines.push(`Post-View,No Action After View,${report.post_view_behavior.view_only}`);
-  lines.push(`Post-View,Edit After View %,${report.post_view_behavior.edit_after_view_rate}`);
+  lines.push(`Post-View,Total Views,${report.post_view_behavior.total_views}`);
+  lines.push(`Post-View,Edit Only,${report.post_view_behavior.edit_only}`);
+  lines.push(`Post-View,Dismiss Only,${report.post_view_behavior.dismiss_only}`);
+  lines.push(`Post-View,Edit + Dismiss,${report.post_view_behavior.edit_and_dismiss}`);
+  lines.push(`Post-View,Nothing,${report.post_view_behavior.nothing}`);
+  lines.push(`Post-View,Edit Only %,${report.post_view_behavior.edit_only_rate}`);
+  lines.push(`Post-View,Dismiss Only %,${report.post_view_behavior.dismiss_only_rate}`);
+  lines.push(`Post-View,Edit + Dismiss %,${report.post_view_behavior.edit_and_dismiss_rate}`);
+  lines.push(`Post-View,Nothing %,${report.post_view_behavior.nothing_rate}`);
 
   // Score Improvements
   lines.push(`Score Changes,Total Edits,${report.score_improvements.total_edits_with_scores}`);
@@ -502,11 +522,11 @@ function formatCSVReport(report) {
   lines.push(`Score Changes,Worsened,${report.score_improvements.worsened}`);
   lines.push(`Score Changes,Improvement Rate %,${report.score_improvements.improvement_rate}`);
 
-  // Final Scores
+  // Finished Review Scores
   for (let score = 1; score <= 5; score++) {
-    lines.push(`Final Scores,Score ${score},${report.final_score_distribution.by_score[score]}`);
+    lines.push(`Finished Review Scores,Score ${score},${report.final_score_distribution.by_score[score]}`);
   }
-  lines.push(`Final Scores,Perfect Score Rate %,${report.final_score_distribution.perfect_score_rate}`);
+  lines.push(`Finished Review Scores,Perfect Score Rate %,${report.final_score_distribution.perfect_score_rate}`);
 
   return lines.join('\n');
 }

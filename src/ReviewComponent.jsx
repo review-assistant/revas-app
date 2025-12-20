@@ -1225,11 +1225,35 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
     return name.substring(0, 20) + '...';
   };
 
+  // Track interaction (view or dismiss) in the database
+  const trackInteraction = async (paragraphId, dimension, interactionType) => {
+    if (!reviewId) return;
+
+    try {
+      await supabase.rpc('track_interaction', {
+        p_review_id: reviewId,
+        p_paragraph_id: paragraphId,
+        p_dimension: dimension,
+        p_interaction_type: interactionType,
+      });
+    } catch (error) {
+      // Silently ignore tracking errors - don't interrupt user workflow
+      console.warn('Failed to track interaction:', error.message);
+    }
+  };
+
   const handleCommentBarClick = (paragraphId) => {
     if (openCommentBar === paragraphId) {
       setOpenCommentBar(null);
     } else {
       setOpenCommentBar(paragraphId);
+
+      // Track view interaction for all visible comment dimensions
+      const visibleComments = getVisibleComments(paragraphId);
+      const dimensions = [...new Set(visibleComments.map(c => c.label))];
+      for (const dimension of dimensions) {
+        trackInteraction(paragraphId, dimension, 'view');
+      }
     }
   };
 
@@ -1258,6 +1282,9 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       delete updated[paragraphId];
       return updated;
     });
+
+    // Track dismiss interaction for this dimension
+    trackInteraction(paragraphId, label, 'dismiss');
   };
 
   const getCommentBarColor = (paragraphId) => {

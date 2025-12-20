@@ -476,33 +476,82 @@ function generateSession(sessionId, config, rng) {
       break;
     }
 
-    // Pick a random paragraph/dimension to interact with
-    const target = rng.choice(improvable);
+    // Group improvable items by paragraph
+    const byParagraph = new Map();
+    for (const item of improvable) {
+      if (!byParagraph.has(item.paragraph_id)) {
+        byParagraph.set(item.paragraph_id, []);
+      }
+      byParagraph.get(item.paragraph_id).push(item);
+    }
+
+    // Pick a random paragraph to interact with
+    const paragraphIds = [...byParagraph.keys()];
+    const targetParagraphId = rng.choice(paragraphIds);
+    const targetDimensions = byParagraph.get(targetParagraphId);
     interactionCount++;
 
     // Record view interaction (paragraph-level - user opens comment bar)
     session.review.interactions.push({
       type: 'view',
-      paragraph_id: target.paragraph_id,
+      paragraph_id: targetParagraphId,
       version,
       timestamp: new Date(Date.now() + interactionCount * 30000).toISOString(),
     });
 
-    // Decide: edit (paragraph-level) or dismiss (dimension-level)
-    const willEdit = rng.next() < config.editRatio;
+    // Decide action: edit only, dismiss only, or both
+    // Action probabilities: ~50% edit only, ~25% dismiss only, ~25% edit+dismiss
+    const actionRoll = rng.next();
+    const willEdit = actionRoll < 0.75; // 75% chance of editing
+    const willDismiss = actionRoll >= 0.5 || rng.next() < 0.3; // ~50% chance of dismissing
 
+    // Handle dismissals (can dismiss 0 to all available dimensions)
+    if (willDismiss && targetDimensions.length > 0) {
+      // Decide how many dimensions to dismiss (1 to all available, weighted toward fewer)
+      const maxDismissals = targetDimensions.length;
+      let numDismissals;
+      const dismissRoll = rng.next();
+      if (dismissRoll < 0.5) {
+        numDismissals = 1; // 50% chance of dismissing just 1
+      } else if (dismissRoll < 0.8) {
+        numDismissals = Math.min(2, maxDismissals); // 30% chance of 2
+      } else if (dismissRoll < 0.95) {
+        numDismissals = Math.min(3, maxDismissals); // 15% chance of 3
+      } else {
+        numDismissals = maxDismissals; // 5% chance of all
+      }
+
+      // Pick which dimensions to dismiss
+      const shuffled = rng.shuffle([...targetDimensions]);
+      const toDismiss = shuffled.slice(0, numDismissals);
+
+      for (const target of toDismiss) {
+        session.review.interactions.push({
+          type: 'dismiss',
+          paragraph_id: target.paragraph_id,
+          dimension: target.dimension,
+          version,
+          timestamp: new Date(Date.now() + interactionCount * 30000 + 5000).toISOString(),
+        });
+
+        // Track dismissal so we don't re-target this dimension
+        dismissed.add(`${target.paragraph_id}:${target.dimension}`);
+      }
+    }
+
+    // Handle edit
     if (willEdit) {
       // Edit the paragraph (creates new version, all dimensions re-scored)
-      const originalText = paragraphs[target.paragraph_id];
+      const originalText = paragraphs[targetParagraphId];
       const editedText = simulateEdit(originalText, rng);
-      paragraphs[target.paragraph_id] = editedText;
+      paragraphs[targetParagraphId] = editedText;
 
       // Re-score (scores tend to improve after edits)
       version++;
       scores = scoreReview(paragraphs, rng);
 
       // Bias scores upward for edited paragraphs
-      const editedScores = scores[target.paragraph_id].scores;
+      const editedScores = scores[targetParagraphId].scores;
       for (const dim of DIMENSIONS) {
         if (rng.next() < 0.7) { // 70% chance of improvement
           editedScores[dim].score = Math.min(5, editedScores[dim].score + rng.int(0, 2));
@@ -528,23 +577,11 @@ function generateSession(sessionId, config, rng) {
       // Record edit interaction (paragraph-level, creates new version)
       session.review.interactions.push({
         type: 'edit',
-        paragraph_id: target.paragraph_id,
+        paragraph_id: targetParagraphId,
         from_version: fromVersion,
         to_version: version,
         timestamp: new Date(Date.now() + interactionCount * 60000).toISOString(),
       });
-    } else {
-      // Dismiss the comment (dimension-level)
-      session.review.interactions.push({
-        type: 'dismiss',
-        paragraph_id: target.paragraph_id,
-        dimension: target.dimension,
-        version,
-        timestamp: new Date(Date.now() + interactionCount * 30000 + 5000).toISOString(),
-      });
-
-      // Track dismissal so we don't re-target this dimension
-      dismissed.add(`${target.paragraph_id}:${target.dimension}`);
     }
   }
 
