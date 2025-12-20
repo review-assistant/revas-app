@@ -111,12 +111,12 @@ Paused work items intended for future development.
   - Simulates: submit review → loop (view paragraph, then edit or dismiss dimension) → until done
   - Run: `npm run generate:sessions -- --sessions=50 --seed=12345`
 
-- [ ] **Export database to JSON** - `scripts/export-sessions.js`
+- [x] **Export database to JSON** - `scripts/export-sessions.js`
   - Exports real sessions from Supabase into same JSON format
   - Anonymizes user IDs; includes all versions, scores, interactions
   - Run: `npm run export:sessions -- --output=real-sessions.json`
 
-- [ ] **Generate interaction report** - `scripts/generate-interaction-report.js`
+- [x] **Generate interaction report** - `scripts/generate-interaction-report.js`
   - Reads sessions JSON (synthetic or real)
   - Computes: viewing rates, edit vs dismiss ratios, score improvements, completion rates
   - Outputs: console summary, CSV, or JSON

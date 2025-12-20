@@ -41,5 +41,8 @@ coverage/
 .lock
 supabase/.user-backup/
 
-# Generated synthetic data
+# Generated session data and reports
 synthetic-sessions.json
+exported-sessions.json
+interaction-report.json
+interaction-report.csv
