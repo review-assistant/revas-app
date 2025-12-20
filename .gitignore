@@ -39,3 +39,4 @@ coverage/
 .branches
 .temp
 .lock
+supabase/.user-backup/

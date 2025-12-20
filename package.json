@@ -16,7 +16,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "test:smoke": "playwright test --grep @smoke",
-    "db:reset": "npx supabase db reset && echo '\n⚠️  DATABASE RESET COMPLETE ⚠️\n\n📋 NEXT STEPS:\n1. Refresh your browser (Cmd+Shift+R or Ctrl+Shift+R)\n2. OR click Logout and sign back in\n\nThis clears old auth tokens that reference deleted users.\n'",
+    "db:reset": "npx supabase db reset --local && echo '\n⚠️  DATABASE RESET COMPLETE ⚠️\n\n📋 NEXT STEPS:\n1. Refresh your browser (Cmd+Shift+R or Ctrl+Shift+R)\n2. OR click Logout and sign back in\n\nThis clears old auth tokens that reference deleted users.\n'",
+    "db:reset:keep-users": "./scripts/db-reset-preserve-users.sh",
     "issues": "node scripts/print-issues.js"
   },
   "dependencies": {

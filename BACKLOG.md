@@ -87,6 +87,18 @@ Paused work items intended for future development.
 
 ---
 
+## Project Management & Documentation (Someday)
+
+*Context: Practices to adopt as the project matures toward user-facing releases.*
+
+- [ ] **GitHub Issues for bug tracking** - Migrate user-facing bugs from BACKLOG.md to GitHub Issues. Link commits/PRs to issues with "Closes #N" syntax.
+- [ ] **CHANGELOG.md** - Start tracking user-facing changes by version when releases begin. Follow [Keep a Changelog](https://keepachangelog.com/) format.
+- [ ] **GitHub Projects board** - Kanban-style visualization of work (To Do → In Progress → Done). Useful when coordinating with others.
+- [ ] **PR templates** - Standardize PR descriptions with checklist (tests, documentation, breaking changes).
+- [ ] **ADRs (Architecture Decision Records)** - Document significant technical decisions and their rationale in `docs/adr/` for future reference.
+
+---
+
 ## How to Use This File
 
 **When pausing work for later:**
