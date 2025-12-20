@@ -303,8 +303,6 @@ describe('My Reviews Integration Tests', () => {
           paragraph_id: 0,
           dimension: 'Actionability',
           score: 4,
-          previous_score: null,
-          score_change: null,
           comment: 'Test comment'
         }]
       })

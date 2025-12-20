@@ -339,16 +339,12 @@ describe('Review Persistence Tests', () => {
           paragraph_id: 0,
           dimension: 'Actionability',
           score: 4,
-          previous_score: null,
-          score_change: null,
           comment: 'Good actionable feedback'
         },
         {
           paragraph_id: 0,
           dimension: 'Helpfulness',
           score: 5,
-          previous_score: null,
-          score_change: null,
           comment: 'Very helpful'
         }
       ]
@@ -405,8 +401,6 @@ describe('Review Persistence Tests', () => {
           paragraph_id: 0,
           dimension: 'Actionability',
           score: 3,
-          previous_score: null,
-          score_change: null,
           comment: 'Initial score'
         }]
       })
@@ -431,8 +425,6 @@ describe('Review Persistence Tests', () => {
           paragraph_id: 0,
           dimension: 'Actionability',
           score: 5,
-          previous_score: 3,
-          score_change: 'improved',
           comment: 'Updated score'
         }]
       })
@@ -448,8 +440,7 @@ describe('Review Persistence Tests', () => {
       const scores = items[0].review_item_scores.filter(s => s.dimension === 'Actionability')
       expect(scores).toHaveLength(1)
       expect(scores[0].score).toBe(5)
-      expect(scores[0].previous_score).toBe(3)
-      expect(scores[0].score_change).toBe('improved')
+      // Note: previous_score and score_change are computed from version history, not stored
     }, 10000)
   })
 
@@ -659,8 +650,6 @@ describe('Review Persistence Tests', () => {
           paragraph_id: 0,
           dimension: 'Actionability',
           score: 4,
-          previous_score: null,
-          score_change: null,
           comment: 'Good'
         }]
       })

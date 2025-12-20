@@ -55,6 +55,34 @@ Paused work items intended for future development.
 
 ---
 
+## Interaction Reporting
+
+*Context: Analytics to understand how authors respond to review feedback. See `docs/Interaction_tracking.md` for full requirements.*
+
+### Data Collection (Prerequisites)
+
+- [ ] **Wire UI to track_interaction RPC** - The database has `track_interaction` function and `review_item_interactions` table ready. Need to call from UI:
+  - Call `track_interaction(..., 'view')` when comment bar opens (`setOpenCommentBar`)
+  - Call `track_interaction(..., 'dismiss')` when comment is dismissed (`handleDismissComment`)
+  - Location: `ReviewComponent.jsx` - search for `setOpenCommentBar` and `handleDismissComment`
+- [ ] **Track score changes between versions** - Compare scores before/after text edits (can be computed from `review_item_scores` joined across versions)
+
+### Report Generation
+
+- [ ] **Comment viewing rates** - How often do authors look / not look at comment text?
+- [ ] **Revision rates after viewing** - When shown comments, how often do authors revise their text?
+- [ ] **Edit count distribution** - Typical number of edits per item, segmented by score
+- [ ] **Score improvement tracking** - Do revisions lead to improved, worse, or unchanged scores?
+- [ ] **Author response patterns** - Rates of: improving to score 5 vs dismissing vs ignoring
+
+### Implementation Notes
+
+- May require new DB tables for interaction events (views, dismissals, edits)
+- Reports could be admin-only dashboard or exportable CSV
+- Consider privacy implications - aggregate vs per-user reporting
+
+---
+
 ## Training Permissions (Paper & Review Tables)
 
 *Context: Required for Phase 7 (Training Data Pipeline) but schema changes needed earlier.*

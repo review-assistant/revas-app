@@ -334,16 +334,12 @@ describe('Database Integration Tests', () => {
           paragraph_id: 0,
           dimension: 'Actionability',
           score: 4,
-          previous_score: null,
-          score_change: null,
           comment: 'Good actionable feedback'
         },
         {
           paragraph_id: 0,
           dimension: 'Helpfulness',
           score: 5,
-          previous_score: null,
-          score_change: null,
           comment: 'Very helpful'
         }
       ]

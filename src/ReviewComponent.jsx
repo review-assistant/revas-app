@@ -980,8 +980,6 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
               paragraph_id: paragraphId,
               dimension: dimension,
               score: data[dimension].score,
-              previous_score: null, // TODO: Track previous scores
-              score_change: null,
               comment: data[dimension].text
             });
           }
