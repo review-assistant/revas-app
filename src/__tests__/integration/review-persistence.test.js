@@ -674,6 +674,78 @@ describe('Review Persistence Tests', () => {
       expect(review.paragraphs[0].scores.Actionability.score).toBe(4)
     }, 10000)
 
+    testFn('only changed paragraphs get new versions', async () => {
+      const { data: paperId } = await supabase.rpc('get_or_create_paper', {
+        p_title: 'Selective Versioning Test',
+        p_conference: 'Test 2025'
+      })
+
+      const { data: reviewId } = await supabase.rpc('get_or_create_review', {
+        p_paper_id: paperId
+      })
+
+      // Create initial version with 4 paragraphs
+      await supabase.rpc('save_draft', {
+        p_review_id: reviewId,
+        p_content: 'Para 1\n\nPara 2\n\nPara 3\n\nPara 4'
+      })
+
+      const { data: v1 } = await supabase.rpc('create_version_from_draft', {
+        p_review_id: reviewId,
+        p_paragraphs: [
+          { paragraph_id: 0, content: 'Para 1' },
+          { paragraph_id: 1, content: 'Para 2' },
+          { paragraph_id: 2, content: 'Para 3' },
+          { paragraph_id: 3, content: 'Para 4' }
+        ]
+      })
+
+      expect(v1).toBe(1)
+
+      // Edit only paragraph 1, others unchanged
+      await supabase.rpc('save_draft', {
+        p_review_id: reviewId,
+        p_content: 'Para 1 - EDITED\n\nPara 2\n\nPara 3\n\nPara 4'
+      })
+
+      const { data: v2 } = await supabase.rpc('create_version_from_draft', {
+        p_review_id: reviewId,
+        p_paragraphs: [
+          { paragraph_id: 0, content: 'Para 1 - EDITED' },
+          { paragraph_id: 1, content: 'Para 2' },  // unchanged
+          { paragraph_id: 2, content: 'Para 3' },  // unchanged
+          { paragraph_id: 3, content: 'Para 4' }   // unchanged
+        ]
+      })
+
+      expect(v2).toBe(2)
+
+      // Verify: only paragraph 0 should have v2, others should only have v1
+      const { data: items } = await supabase
+        .from('review_items')
+        .select('paragraph_id, version')
+        .eq('review_id', reviewId)
+        .order('paragraph_id')
+        .order('version')
+
+      // Group by paragraph_id to see versions for each
+      const byParagraph = {}
+      for (const item of items) {
+        if (!byParagraph[item.paragraph_id]) {
+          byParagraph[item.paragraph_id] = []
+        }
+        byParagraph[item.paragraph_id].push(item.version)
+      }
+
+      // Paragraph 0 was edited, should have v1 and v2
+      expect(byParagraph[0]).toEqual([1, 2])
+
+      // Paragraphs 1, 2, 3 were NOT edited, should only have v1
+      expect(byParagraph[1]).toEqual([1])
+      expect(byParagraph[2]).toEqual([1])
+      expect(byParagraph[3]).toEqual([1])
+    }, 10000)
+
     testFn('version numbers increment only on create_version_from_draft', async () => {
       const { data: paperId } = await supabase.rpc('get_or_create_paper', {
         p_title: 'Version Increment Test',
