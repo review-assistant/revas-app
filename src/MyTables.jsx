@@ -5,6 +5,46 @@ export default function MyTables({ onBack }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [expandedParagraphs, setExpandedParagraphs] = useState({}); // {paragraphKey: true}
+
+  // Toggle version history for a paragraph
+  const toggleVersionHistory = (reviewId, paragraphId) => {
+    const key = `${reviewId}-${paragraphId}`;
+    setExpandedParagraphs(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Group review items by paragraph_id and sort by version (descending)
+  const groupByParagraph = (reviewItems) => {
+    if (!reviewItems) return {};
+    const groups = {};
+    for (const item of reviewItems) {
+      if (!groups[item.paragraph_id]) {
+        groups[item.paragraph_id] = [];
+      }
+      groups[item.paragraph_id].push(item);
+    }
+    // Sort each group by version descending (latest first)
+    for (const pid of Object.keys(groups)) {
+      groups[pid].sort((a, b) => b.version - a.version);
+    }
+    return groups;
+  };
+
+  // Check if a dimension was dismissed in any earlier version
+  const wasDismissedInEarlierVersion = (paragraphVersions, currentVersion, dimension) => {
+    for (const item of paragraphVersions) {
+      if (item.version < currentVersion) {
+        const interaction = item.interactions?.find(i => i.dimension === dimension);
+        if (interaction?.comment_dismissed) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
 
   useEffect(() => {
     loadData();
@@ -149,69 +189,144 @@ export default function MyTables({ onBack }) {
                           {review.review_items && review.review_items.length > 0 ? (
                             <div className="space-y-3">
                               <h4 className="font-semibold text-gray-700">Review Items:</h4>
-                              {review.review_items.map((item, itemIdx) => (
-                                <div key={item.id} className="bg-yellow-50 border border-yellow-200 rounded p-3">
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div className="font-medium text-yellow-900">
-                                      Paragraph {itemIdx + 1} (ID: {item.paragraph_id}, v{item.version})
-                                    </div>
-                                    <div className="text-xs text-yellow-700">
-                                      {item.is_deleted ? '🗑️ Deleted' : '✓ Active'}
-                                    </div>
-                                  </div>
+                              {(() => {
+                                const grouped = groupByParagraph(review.review_items);
+                                const paragraphIds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
 
-                                  <div className="text-sm text-gray-700 mb-3 bg-white border border-yellow-100 rounded p-2">
-                                    {item.content}
-                                  </div>
+                                return paragraphIds.map((paragraphId, itemIdx) => {
+                                  const versions = grouped[paragraphId];
+                                  const latestItem = versions[0]; // First is latest (sorted desc)
+                                  const hasHistory = versions.length > 1;
+                                  const expandKey = `${review.id}-${paragraphId}`;
+                                  const isExpanded = expandedParagraphs[expandKey];
 
-                                  {item.scores && item.scores.length > 0 && (
-                                    <div className="mt-2 space-y-2">
-                                      <div className="text-xs font-semibold text-yellow-800">Scores:</div>
-                                      {item.scores.map((score, scoreIdx) => {
-                                        // Find matching interaction for this dimension
-                                        const interaction = item.interactions?.find(i => i.dimension === score.dimension);
-                                        return (
-                                          <div key={scoreIdx} className="bg-white border border-yellow-100 rounded p-2 text-sm">
-                                            <div className="flex justify-between items-center mb-1">
-                                              <span className="font-medium text-yellow-900">
-                                                {score.dimension}
-                                              </span>
-                                              <div className="flex items-center gap-2">
-                                                {interaction && (
-                                                  <span className="flex gap-1">
-                                                    {interaction.comment_viewed && (
-                                                      <span className="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700" title={`Viewed: ${new Date(interaction.comment_viewed_at).toLocaleString()}`}>
-                                                        👁
-                                                      </span>
-                                                    )}
-                                                    {interaction.comment_dismissed && (
-                                                      <span className="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600" title={`Dismissed: ${new Date(interaction.comment_dismissed_at).toLocaleString()}`}>
-                                                        ✕
-                                                      </span>
-                                                    )}
+                                  return (
+                                    <div key={latestItem.id} className="bg-yellow-50 border border-yellow-200 rounded p-3">
+                                      <div className="flex justify-between items-start mb-2">
+                                        <div className="font-medium text-yellow-900 flex items-center gap-2">
+                                          Paragraph {itemIdx + 1} (ID: {latestItem.paragraph_id}, v{latestItem.version})
+                                          {hasHistory && (
+                                            <button
+                                              onClick={() => toggleVersionHistory(review.id, paragraphId)}
+                                              className="text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded transition-colors"
+                                              title={isExpanded ? 'Hide version history' : `Show ${versions.length - 1} previous version(s)`}
+                                            >
+                                              {isExpanded ? '▼' : '▶'} {versions.length - 1} prev
+                                            </button>
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-yellow-700">
+                                          {latestItem.is_deleted ? '🗑️ Deleted' : '✓ Active'}
+                                        </div>
+                                      </div>
+
+                                      <div className="text-sm text-gray-700 mb-3 bg-white border border-yellow-100 rounded p-2">
+                                        {latestItem.content}
+                                      </div>
+
+                                      {latestItem.scores && latestItem.scores.length > 0 && (
+                                        <div className="mt-2 space-y-2">
+                                          <div className="text-xs font-semibold text-yellow-800">Scores:</div>
+                                          {latestItem.scores.map((score, scoreIdx) => {
+                                            // Find matching interaction for this dimension
+                                            const interaction = latestItem.interactions?.find(i => i.dimension === score.dimension);
+                                            // Check if this dimension was dismissed in an earlier version
+                                            const hiddenByPriorDismiss = !interaction && wasDismissedInEarlierVersion(versions, latestItem.version, score.dimension);
+                                            return (
+                                              <div key={scoreIdx} className="bg-white border border-yellow-100 rounded p-2 text-sm">
+                                                <div className="flex justify-between items-center mb-1">
+                                                  <span className="font-medium text-yellow-900">
+                                                    {score.dimension}
                                                   </span>
+                                                  <div className="flex items-center gap-2">
+                                                    {hiddenByPriorDismiss && (
+                                                      <span className="px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700 relative" title="Hidden due to dismissal in earlier version">
+                                                        <span>👁</span>
+                                                        <span className="absolute inset-0 flex items-center justify-center text-orange-700 font-bold text-sm">✕</span>
+                                                      </span>
+                                                    )}
+                                                    {interaction && (
+                                                      <span className="flex gap-1">
+                                                        {interaction.comment_viewed && (
+                                                          <span className="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700" title={`Viewed: ${new Date(interaction.comment_viewed_at).toLocaleString()}`}>
+                                                            👁
+                                                          </span>
+                                                        )}
+                                                        {interaction.comment_dismissed && (
+                                                          <span className="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600" title={`Dismissed: ${new Date(interaction.comment_dismissed_at).toLocaleString()}`}>
+                                                            ✕
+                                                          </span>
+                                                        )}
+                                                      </span>
+                                                    )}
+                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                      score.score <= 2 ? 'bg-red-100 text-red-800' :
+                                                      score.score <= 4 ? 'bg-yellow-100 text-yellow-800' :
+                                                      'bg-green-100 text-green-800'
+                                                    }`}>
+                                                      {score.score}/5
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                                {score.comment && (
+                                                  <div className="text-gray-600 text-xs mt-1">
+                                                    {score.comment}
+                                                  </div>
                                                 )}
-                                                <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                                  score.score <= 2 ? 'bg-red-100 text-red-800' :
-                                                  score.score <= 4 ? 'bg-yellow-100 text-yellow-800' :
-                                                  'bg-green-100 text-green-800'
-                                                }`}>
-                                                  {score.score}/5
-                                                </span>
                                               </div>
-                                            </div>
-                                            {score.comment && (
-                                              <div className="text-gray-600 text-xs mt-1">
-                                                {score.comment}
-                                              </div>
-                                            )}
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+
+                                      {/* Version history (collapsed by default) */}
+                                      {isExpanded && versions.slice(1).map((oldItem) => (
+                                        <div key={oldItem.id} className="mt-3 ml-4 border-l-2 border-purple-300 pl-3 opacity-75">
+                                          <div className="text-xs text-purple-700 font-medium mb-1">
+                                            v{oldItem.version} - {new Date(oldItem.created_at).toLocaleString()}
                                           </div>
-                                        );
-                                      })}
+                                          <div className="text-sm text-gray-600 mb-2 bg-purple-50 border border-purple-100 rounded p-2">
+                                            {oldItem.content}
+                                          </div>
+                                          {oldItem.scores && oldItem.scores.length > 0 && (
+                                            <div className="space-y-1">
+                                              {oldItem.scores.map((score, scoreIdx) => {
+                                                const interaction = oldItem.interactions?.find(i => i.dimension === score.dimension);
+                                                // Check if this dimension was dismissed in an even earlier version
+                                                const hiddenByPriorDismiss = !interaction && wasDismissedInEarlierVersion(versions, oldItem.version, score.dimension);
+                                                return (
+                                                  <div key={scoreIdx} className="flex items-center gap-2 text-xs">
+                                                    <span className="text-purple-800">{score.dimension}:</span>
+                                                    <span className={`px-1.5 py-0.5 rounded font-bold ${
+                                                      score.score <= 2 ? 'bg-red-100 text-red-800' :
+                                                      score.score <= 4 ? 'bg-yellow-100 text-yellow-800' :
+                                                      'bg-green-100 text-green-800'
+                                                    }`}>
+                                                      {score.score}/5
+                                                    </span>
+                                                    {hiddenByPriorDismiss && (
+                                                      <span className="relative text-orange-600" title="Hidden due to dismissal in earlier version">
+                                                        <span>👁</span>
+                                                        <span className="absolute inset-0 flex items-center justify-center font-bold">✕</span>
+                                                      </span>
+                                                    )}
+                                                    {interaction?.comment_viewed && (
+                                                      <span className="text-blue-600" title="Viewed">👁</span>
+                                                    )}
+                                                    {interaction?.comment_dismissed && (
+                                                      <span className="text-gray-500" title="Dismissed">✕</span>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
                                     </div>
-                                  )}
-                                </div>
-                              ))}
+                                  );
+                                });
+                              })()}
                             </div>
                           ) : (
                             <div className="text-gray-500 text-sm italic">No review items</div>
