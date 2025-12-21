@@ -130,9 +130,18 @@ export default function MyTables({ onBack }) {
 
                           {review.content && (
                             <div className="mb-4">
-                              <h4 className="font-semibold text-gray-700 mb-2">Full Review Content:</h4>
+                              <h4 className="font-semibold text-gray-700 mb-2">Scored Content:</h4>
                               <div className="bg-gray-50 border border-gray-200 rounded p-3 whitespace-pre-wrap text-sm">
                                 {review.content}
+                              </div>
+                            </div>
+                          )}
+
+                          {review.draft_content && review.draft_content !== review.content && (
+                            <div className="mb-4">
+                              <h4 className="font-semibold text-gray-700 mb-2">Draft Content (unsaved edits):</h4>
+                              <div className="bg-orange-50 border border-orange-200 rounded p-3 whitespace-pre-wrap text-sm">
+                                {review.draft_content}
                               </div>
                             </div>
                           )}
@@ -158,27 +167,47 @@ export default function MyTables({ onBack }) {
                                   {item.scores && item.scores.length > 0 && (
                                     <div className="mt-2 space-y-2">
                                       <div className="text-xs font-semibold text-yellow-800">Scores:</div>
-                                      {item.scores.map((score, scoreIdx) => (
-                                        <div key={scoreIdx} className="bg-white border border-yellow-100 rounded p-2 text-sm">
-                                          <div className="flex justify-between items-center mb-1">
-                                            <span className="font-medium text-yellow-900">
-                                              {score.dimension}
-                                            </span>
-                                            <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                              score.score <= 2 ? 'bg-red-100 text-red-800' :
-                                              score.score <= 4 ? 'bg-yellow-100 text-yellow-800' :
-                                              'bg-green-100 text-green-800'
-                                            }`}>
-                                              {score.score}/5
-                                            </span>
-                                          </div>
-                                          {score.comment && (
-                                            <div className="text-gray-600 text-xs mt-1">
-                                              {score.comment}
+                                      {item.scores.map((score, scoreIdx) => {
+                                        // Find matching interaction for this dimension
+                                        const interaction = item.interactions?.find(i => i.dimension === score.dimension);
+                                        return (
+                                          <div key={scoreIdx} className="bg-white border border-yellow-100 rounded p-2 text-sm">
+                                            <div className="flex justify-between items-center mb-1">
+                                              <span className="font-medium text-yellow-900">
+                                                {score.dimension}
+                                              </span>
+                                              <div className="flex items-center gap-2">
+                                                {interaction && (
+                                                  <span className="flex gap-1">
+                                                    {interaction.comment_viewed && (
+                                                      <span className="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700" title={`Viewed: ${new Date(interaction.comment_viewed_at).toLocaleString()}`}>
+                                                        👁
+                                                      </span>
+                                                    )}
+                                                    {interaction.comment_dismissed && (
+                                                      <span className="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600" title={`Dismissed: ${new Date(interaction.comment_dismissed_at).toLocaleString()}`}>
+                                                        ✕
+                                                      </span>
+                                                    )}
+                                                  </span>
+                                                )}
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                  score.score <= 2 ? 'bg-red-100 text-red-800' :
+                                                  score.score <= 4 ? 'bg-yellow-100 text-yellow-800' :
+                                                  'bg-green-100 text-green-800'
+                                                }`}>
+                                                  {score.score}/5
+                                                </span>
+                                              </div>
                                             </div>
-                                          )}
-                                        </div>
-                                      ))}
+                                            {score.comment && (
+                                              <div className="text-gray-600 text-xs mt-1">
+                                                {score.comment}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </div>
