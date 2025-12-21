@@ -266,6 +266,73 @@ The app implements GDPR-compliant account management features:
 
 For detailed testing procedures, see [TESTING.md](TESTING.md).
 
+## Interaction Logging & Reporting
+
+The app tracks how authors interact with AI-generated feedback to understand revision patterns.
+
+### What's Tracked
+
+- **Views**: When an author opens a comment bar to see feedback (paragraph-level)
+- **Dismissals**: When an author dismisses a specific dimension's comment (dimension-level)
+- **Edits**: When an author modifies paragraph text and clicks UPDATE (creates new version)
+- **Score changes**: How scores evolve across versions (computed from version history)
+
+### Viewing Interaction Data
+
+Access **My Tables** from the account dropdown to see:
+- All review versions with scores and interaction indicators
+- 👁 (blue) - Comment was viewed
+- ✕ (gray) - Comment was dismissed
+- 👁✕ (orange) - Comment hidden due to dismissal in earlier version
+- Expandable version history for each paragraph
+
+### Exporting Session Data
+
+Export all review sessions from the database to JSON:
+
+```bash
+# Export to default file (sessions.json)
+npm run export:sessions
+
+# Export to custom file
+npm run export:sessions -- --output=my-sessions.json
+```
+
+The export includes all papers, reviews, versions, scores, and interactions in a unified JSON format.
+
+### Generating Interaction Reports
+
+Analyze exported sessions to understand author behavior:
+
+```bash
+# Generate report from exported data
+npm run report:interactions -- --input=sessions.json
+
+# Output to file instead of console
+npm run report:interactions -- --input=sessions.json --output=report.txt
+```
+
+Reports include:
+- Session completion rates
+- Comment viewing rates by score
+- Post-view behavior (edit, dismiss, both, nothing)
+- Score improvement tracking
+- Finished review score distribution
+
+### Synthetic Data for Testing
+
+Generate synthetic sessions for report development:
+
+```bash
+# Generate 50 synthetic sessions with reproducible seed
+npm run generate:sessions -- --sessions=50 --seed=12345
+
+# Generate to custom output file
+npm run generate:sessions -- --sessions=100 --output=test-sessions.json
+```
+
+Synthetic sessions simulate realistic author behavior patterns for testing the reporting pipeline.
+
 ## Database Schema
 
 The app uses Supabase with the following tables:
