@@ -1175,6 +1175,26 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       // THEN save scores to the new version
       await saveScores(commentResults);
 
+      // If comment bar is open for a modified paragraph, track views for the new version
+      // Note: We need to check visibility AFTER updating commentsByParagraphId state
+      // but the state update is async. Instead, compute visible comments from newComments
+      // while respecting dismissedComments.
+      if (openCommentBar !== null) {
+        const modifiedParagraphIds = modifiedParagraphs.map(p => p.id);
+        if (modifiedParagraphIds.includes(openCommentBar)) {
+          // Get dimensions from new comments, but exclude dismissed ones
+          const newParagraphComments = newComments[openCommentBar] || [];
+          const dismissed = dismissedComments[openCommentBar] || new Set();
+          const visibleDimensions = newParagraphComments
+            .filter(c => c.severity !== 'none' && !dismissed.has(c.label))
+            .map(c => c.label);
+          const uniqueDimensions = [...new Set(visibleDimensions)];
+          for (const dimension of uniqueDimensions) {
+            trackInteraction(openCommentBar, dimension, 'view');
+          }
+        }
+      }
+
       // Update paragraph originalContent to match currentContent
       const updatedParagraphs = paragraphsWithIds.map(p => ({
         ...p,
