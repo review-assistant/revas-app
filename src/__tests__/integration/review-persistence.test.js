@@ -791,4 +791,109 @@ describe('Review Persistence Tests', () => {
       expect(items.map(i => i.version).sort()).toEqual([1, 2, 3])
     }, 10000)
   })
+
+  describe('Interaction Tracking', () => {
+    testFn('view interaction is tracked for new version when paragraph is updated', async () => {
+      // This tests the scenario where:
+      // 1. User opens comment bar for a paragraph (view tracked for v1)
+      // 2. User edits the paragraph while comment bar is open
+      // 3. User clicks UPDATE (new v2 created)
+      // 4. View should be tracked for v2 since comment bar is still open
+
+      const { data: paperId } = await supabase.rpc('get_or_create_paper', {
+        p_title: 'View Tracking Version Test',
+        p_conference: 'Test 2025'
+      })
+
+      const { data: reviewId } = await supabase.rpc('get_or_create_review', {
+        p_paper_id: paperId
+      })
+
+      // Create version 1
+      await supabase.rpc('save_draft', {
+        p_review_id: reviewId,
+        p_content: 'Original paragraph content'
+      })
+
+      await supabase.rpc('create_version_from_draft', {
+        p_review_id: reviewId,
+        p_paragraphs: [
+          { paragraph_id: 0, content: 'Original paragraph content' }
+        ]
+      })
+
+      // Save scores for v1
+      await supabase.rpc('save_review_scores', {
+        p_review_id: reviewId,
+        p_scores: [{
+          paragraph_id: 0,
+          dimension: 'Actionability',
+          score: 3,
+          comment: 'Initial feedback'
+        }]
+      })
+
+      // User opens comment bar - track view for v1
+      await supabase.rpc('track_interaction', {
+        p_review_id: reviewId,
+        p_paragraph_id: 0,
+        p_dimension: 'Actionability',
+        p_interaction_type: 'view'
+      })
+
+      // User edits paragraph while comment bar is open
+      await supabase.rpc('save_draft', {
+        p_review_id: reviewId,
+        p_content: 'EDITED paragraph content'
+      })
+
+      // User clicks UPDATE - creates v2
+      await supabase.rpc('create_version_from_draft', {
+        p_review_id: reviewId,
+        p_paragraphs: [
+          { paragraph_id: 0, content: 'EDITED paragraph content' }
+        ]
+      })
+
+      // Save scores for v2
+      await supabase.rpc('save_review_scores', {
+        p_review_id: reviewId,
+        p_scores: [{
+          paragraph_id: 0,
+          dimension: 'Actionability',
+          score: 4,
+          comment: 'Improved feedback'
+        }]
+      })
+
+      // Since comment bar is still open, UI should track view for v2
+      // This simulates what the UI should do after UPDATE completes
+      await supabase.rpc('track_interaction', {
+        p_review_id: reviewId,
+        p_paragraph_id: 0,
+        p_dimension: 'Actionability',
+        p_interaction_type: 'view'
+      })
+
+      // Verify interactions exist for both versions
+      const { data: items } = await supabase
+        .from('review_items')
+        .select('version, review_item_interactions(*)')
+        .eq('review_id', reviewId)
+        .eq('paragraph_id', 0)
+        .order('version')
+
+      expect(items).toHaveLength(2)
+
+      // v1 should have view interaction
+      const v1 = items.find(i => i.version === 1)
+      expect(v1.review_item_interactions).toHaveLength(1)
+      expect(v1.review_item_interactions[0].comment_viewed).toBe(true)
+
+      // v2 should also have view interaction (this is what the bug was missing)
+      const v2 = items.find(i => i.version === 2)
+      expect(v2.review_item_interactions).toHaveLength(1)
+      expect(v2.review_item_interactions[0].comment_viewed).toBe(true)
+    }, 15000)
+  })
 })
