@@ -114,6 +114,19 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
     isUpdatingRef.current = isUpdating;
   }, [isUpdating]);
 
+  // Warn user before leaving page during UPDATE
+  useEffect(() => {
+    if (!isUpdating) return;
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = ''; // Required for Chrome
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isUpdating]);
+
   // Initialize paragraph IDs on first render
   useEffect(() => {
     const initialParagraphTexts = getParagraphs(reviewText);
