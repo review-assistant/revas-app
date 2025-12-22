@@ -28,6 +28,14 @@ Paused work items intended for future development.
 
 - [ ] **State reset during in-flight requests** - When `currentReview` changes (line 509-552), state resets. If save/update is in progress, results could arrive after reset.
 
+- [ ] **Cancel race condition during DB writes** - If user clicks CANCEL after API returns but during database writes, the writes still complete:
+  - Request ID check at line 1082 passes before DB writes start
+  - User cancels → UI unlocks, user can edit
+  - Meanwhile `create_version_from_draft` (line 1144) and `saveScores` (line 1154) complete
+  - DB has stale data, UI state may be inconsistent
+  - Suggested fix: Add request ID checks before each `await`, or use AbortController
+  - Location: `ReviewComponent.jsx:1082-1181`
+
 ### 3. Comment Update Arrival Races
 
 - [x] **Stale comments for edited paragraphs** - ~~If user edits text while API call is in flight, returned comments are for old content but get associated with current paragraph IDs.~~
@@ -48,6 +56,18 @@ Paused work items intended for future development.
   - Location: `ReviewComponent.jsx:975, 1113, 1123`
 
 ### 5. UI State During Slow Operations
+
+- [ ] **Page refresh during in-flight UPDATE** - HIGH PRIORITY. If user refreshes during a slow UPDATE:
+  - In-flight request may complete after refresh, saving stale scores
+  - User doesn't know if update succeeded, failed, or is still processing
+  - User might edit text after refresh, then old update overwrites with stale data
+  - Suggested fix: Persist "update in progress" flag to localStorage with timestamp and review ID. On page load, check flag and show appropriate warning/status.
+  - Complications to consider:
+    - localStorage is synchronous and blocks the main thread (but fast for small data)
+    - Data persists across tabs - need to scope by review ID
+    - Need to clean up stale flags (e.g., if browser crashed)
+    - No automatic expiry - must manually check timestamps
+  - Location: `ReviewComponent.jsx` - `handleUpdate` function
 
 - [ ] **No timeout handling for very slow API** - If backend is extremely slow, UI stays in loading state indefinitely. No user feedback or recovery option beyond CANCEL.
 
