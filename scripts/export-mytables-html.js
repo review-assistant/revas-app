@@ -106,8 +106,8 @@ function groupByParagraph(reviewItems) {
  */
 function getScoreColor(score) {
   if (score <= 2) return 'bg-red-100 text-red-800';
-  if (score <= 4) return 'bg-yellow-100 text-yellow-800';
-  return 'bg-green-100 text-green-800';
+  if (score <= 3) return 'bg-yellow-100 text-yellow-800';
+  return 'bg-green-100 text-green-800'; // scores 4-5 are green (hidden in main UI)
 }
 
 /**

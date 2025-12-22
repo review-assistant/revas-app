@@ -22,8 +22,8 @@ import PaperInfoDialog from './components/PaperInfoDialog.jsx';
 // Helper function to convert score to severity
 const scoreToSeverity = (score) => {
   if (score <= 2) return 'red';
-  if (score <= 4) return 'yellow';
-  return 'none';
+  if (score <= 3) return 'yellow';
+  return 'none'; // scores 4-5 are hidden
 };
 
 // Paragraph matching configuration

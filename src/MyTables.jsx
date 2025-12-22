@@ -261,7 +261,7 @@ export default function MyTables({ onBack }) {
                                                     )}
                                                     <span className={`px-2 py-1 rounded text-xs font-bold ${
                                                       score.score <= 2 ? 'bg-red-100 text-red-800' :
-                                                      score.score <= 4 ? 'bg-yellow-100 text-yellow-800' :
+                                                      score.score <= 3 ? 'bg-yellow-100 text-yellow-800' :
                                                       'bg-green-100 text-green-800'
                                                     }`}>
                                                       {score.score}/5
@@ -300,7 +300,7 @@ export default function MyTables({ onBack }) {
                                                       <span className="text-purple-800">{score.dimension}:</span>
                                                       <span className={`px-1.5 py-0.5 rounded font-bold ${
                                                         score.score <= 2 ? 'bg-red-100 text-red-800' :
-                                                        score.score <= 4 ? 'bg-yellow-100 text-yellow-800' :
+                                                        score.score <= 3 ? 'bg-yellow-100 text-yellow-800' :
                                                         'bg-green-100 text-green-800'
                                                       }`}>
                                                         {score.score}/5

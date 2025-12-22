@@ -407,14 +407,14 @@ function scoreReview(paragraphs, rng) {
 }
 
 /**
- * Find paragraphs with scores below 5
+ * Find paragraphs with scores below 4 (scores 4-5 are hidden/"good enough")
  */
 function findImprovableParagraphs(scores) {
   const improvable = [];
 
   for (const { paragraph_id, scores: dimScores } of scores) {
     for (const [dim, { score }] of Object.entries(dimScores)) {
-      if (score < 5) {
+      if (score < 4) {
         improvable.push({ paragraph_id, dimension: dim, score });
       }
     }
@@ -466,13 +466,13 @@ function generateSession(sessionId, config, rng) {
   let interactionCount = 0;
 
   while (interactionCount < config.maxInteractions) {
-    // Find paragraphs with improvable dimensions (score < 5, not dismissed)
+    // Find paragraphs with improvable dimensions (score < 4, not dismissed)
     const improvable = findImprovableParagraphs(scores).filter(
       ({ paragraph_id, dimension }) => !dismissed.has(`${paragraph_id}:${dimension}`)
     );
 
     if (improvable.length === 0) {
-      // All scores are 5 or dismissed - session complete
+      // All scores are >=4 (hidden) or dismissed - session complete
       break;
     }
 
@@ -586,7 +586,7 @@ function generateSession(sessionId, config, rng) {
   }
 
   // Summary stats
-  // A session is "complete" if all paragraph/dimension pairs are either score=5 or dismissed
+  // A session is "complete" if all paragraph/dimension pairs are score>=4 (hidden) or dismissed
   const remainingImprovable = findImprovableParagraphs(scores).filter(
     ({ paragraph_id, dimension }) => !dismissed.has(`${paragraph_id}:${dimension}`)
   );
