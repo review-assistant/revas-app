@@ -131,6 +131,34 @@ function getInitialViewFromUrl() {
   return viewParam === 'tables' ? 'tables' : 'main'
 }
 
+// Modal component for warning about navigating during UPDATE
+function UpdateWarningModal({ onKeepWaiting, onAbandon }) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+      <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Update In Progress</h2>
+        <p className="text-gray-600 mb-6">
+          Your review is currently being updated. If you leave now, any pending changes will be lost.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onAbandon}
+            className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+          >
+            Abandon Update
+          </button>
+          <button
+            onClick={onKeepWaiting}
+            className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+          >
+            Keep Waiting
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const { user, loading } = useAuth()
   const initialView = getInitialViewFromUrl()
@@ -138,6 +166,8 @@ function App() {
   const [isStandaloneTable, setIsStandaloneTable] = useState(initialView === 'tables')
   const [showMyReviews, setShowMyReviews] = useState(false)
   const [showReportIssue, setShowReportIssue] = useState(false)
+  const [showUpdateWarning, setShowUpdateWarning] = useState(false)
+  const [pendingNavigation, setPendingNavigation] = useState(null) // { type: 'view' | 'myReviews', view?: string }
   const [currentReview, setCurrentReview] = useState(null) // { reviewId, paperId, paperTitle, paperConference }
   const reviewComponentRef = useRef(null)
   const skipAutoShowModalRef = useRef(false) // Skip auto-showing modal after explicit review selection
@@ -195,6 +225,13 @@ function App() {
   }
 
   const handleShowMyReviews = async () => {
+    // Check if update is in progress
+    if (reviewComponentRef.current?.isUpdating?.()) {
+      setPendingNavigation({ type: 'myReviews' })
+      setShowUpdateWarning(true)
+      return
+    }
+
     // Save draft before showing My Reviews
     if (currentReview && reviewComponentRef.current) {
       console.log('Saving draft before showing My Reviews...')
@@ -211,6 +248,13 @@ function App() {
 
   // Save draft before navigating away from main view
   const handleNavigate = useCallback(async (view) => {
+    // Check if update is in progress
+    if (currentView === 'main' && reviewComponentRef.current?.isUpdating?.()) {
+      setPendingNavigation({ type: 'view', view })
+      setShowUpdateWarning(true)
+      return
+    }
+
     if (currentView === 'main' && reviewComponentRef.current) {
       console.log('Saving draft before navigation...')
       try {
@@ -223,6 +267,28 @@ function App() {
     }
     setCurrentView(view)
   }, [currentView])
+
+  // Handle abandoning update and proceeding with pending navigation
+  const handleAbandonUpdate = useCallback(() => {
+    // Cancel the update
+    reviewComponentRef.current?.cancelUpdate?.()
+    setShowUpdateWarning(false)
+
+    // Execute the pending navigation
+    if (pendingNavigation) {
+      if (pendingNavigation.type === 'myReviews') {
+        setShowMyReviews(true)
+      } else if (pendingNavigation.type === 'view') {
+        setCurrentView(pendingNavigation.view)
+      }
+      setPendingNavigation(null)
+    }
+  }, [pendingNavigation])
+
+  const handleKeepWaiting = useCallback(() => {
+    setShowUpdateWarning(false)
+    setPendingNavigation(null)
+  }, [])
 
   if (loading) {
     return (
@@ -298,6 +364,12 @@ function App() {
       )}
       {showReportIssue && (
         <ReportIssueModal onClose={() => setShowReportIssue(false)} />
+      )}
+      {showUpdateWarning && (
+        <UpdateWarningModal
+          onKeepWaiting={handleKeepWaiting}
+          onAbandon={handleAbandonUpdate}
+        />
       )}
     </div>
   )

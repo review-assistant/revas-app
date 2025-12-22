@@ -947,9 +947,15 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
     }
   };
 
-  // Expose saveReviewDraft to parent via ref
+  // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
-    saveReviewDraft: saveReviewDraft
+    saveReviewDraft: saveReviewDraft,
+    isUpdating: () => isUpdatingRef.current,
+    cancelUpdate: () => {
+      if (isUpdatingRef.current) {
+        handleCancel();
+      }
+    }
   }), [saveReviewDraft]);
 
   // Save on unmount (when navigating away)
