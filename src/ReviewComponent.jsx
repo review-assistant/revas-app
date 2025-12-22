@@ -1086,13 +1086,11 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
       }
 
       // Transform API response to internal comment format with severity
-      // Also implement monotonic score behavior: new scores are max of old and new
       const newComments = {};
 
       Object.keys(commentResults).forEach(paragraphIdStr => {
         const paragraphId = parseInt(paragraphIdStr);
         const commentData = commentResults[paragraphIdStr];
-        const existingComments = commentsByParagraphId[paragraphId] || [];
 
         // Transform each label's data into the internal format
         const formattedComments = [];
@@ -1100,27 +1098,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
 
         labels.forEach(label => {
           if (commentData[label]) {
-            let { score, text } = commentData[label];
-
-            // Check if this paragraph has test markers that should override monotonic behavior
-            const labelMarkers = { 'Actionability': 'A', 'Helpfulness': 'H', 'Grounding': 'G', 'Verifiability': 'V' };
-            const marker = labelMarkers[label];
-            const paraContent = modifiedParagraphs.find(p => p.id === paragraphId)?.content || '';
-            const hasMarker = paraContent.includes(`XXX${marker}`) ||
-                              paraContent.includes(`YYY${marker}`) ||
-                              paraContent.includes(`ZZZ${marker}`);
-
-            // Implement monotonic behavior UNLESS a marker is present (markers always override)
-            if (!hasMarker) {
-              const existingComment = existingComments.find(c => c.label === label);
-              if (existingComment && existingComment.score) {
-                // Take the maximum of old and new scores
-                score = Math.max(existingComment.score, score);
-                // Update text to reflect the final score
-                text = `${label} feedback for paragraph: Score ${score}/5. ${commentData[label].text.split('. ').slice(1).join('. ')}`;
-              }
-            }
-
+            const { score, text } = commentData[label];
             const severity = scoreToSeverity(score);
 
             // Store all items including severity 'none' for score tracking
@@ -1129,7 +1107,7 @@ const ReviewComponent = forwardRef(({ currentReview, onDiscardReview, ...props }
               severity: severity,
               label: label,
               text: text,
-              score: score // Store the score for future comparisons
+              score: score
             });
           }
         });
