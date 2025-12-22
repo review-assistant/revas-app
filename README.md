@@ -188,14 +188,9 @@ Backend API tests verify the comments API is accessible and returns correctly fo
 **Comment Evaluation:**
 - Evaluates paragraphs on four dimensions: **Actionability**, **Helpfulness**, **Grounding**, and **Verifiability**
 - Scores range from 1-5 for each dimension
-- Score 1-2 (Red): Critical issues
-- Score 3-4 (Yellow): Suggestions for improvement
-- Score 5: Perfect (comment hidden)
-
-**Monotonic Scoring:**
-- Scores can only increase, never decrease
-- Encourages iterative improvement toward perfect scores
-- Once a dimension reaches score 5, it stays there
+- Score 1-2 (Red): Critical issues requiring attention
+- Score 3 (Yellow): Suggestions for improvement
+- Score 4-5: Good (comments hidden from reviewer)
 
 **Test Markers:**
 For development/testing, you can force specific scores by adding markers to paragraph text:
@@ -356,7 +351,26 @@ The app uses Supabase with the following tables:
 
 **Migrations:**
 - Located in `supabase/migrations/`
-- Apply with: `supabase db reset`
+- Apply with: `npx supabase db reset`
+
+**Applying Schema Changes (Local Development):**
+
+When you modify migration files or add new ones, you have two options:
+
+1. **`npx supabase db push --local`** (Recommended for most cases)
+   - Applies pending migrations without destroying data
+   - Preserves existing users and review data
+   - Fast - only runs new/changed migrations
+   - Use this during normal development
+
+2. **`npm run db:reset:keep-users`**
+   - Full reset that recreates all tables
+   - Preserves user accounts but clears all other data
+   - Use when migrations are broken or you need a clean slate
+
+3. **`npx supabase db reset`**
+   - Nuclear option: destroys everything including users
+   - Use only when you need a completely fresh database
 
 ## Project Structure
 
