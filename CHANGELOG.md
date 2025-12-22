@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - My Tables view with version history and interaction indicators (viewed/dismissed)
 - HTML export for My Tables data (`npm run export:mytables`)
 - Interaction logging and reporting tools
+- Warning when navigating away during UPDATE (browser beforeunload + in-app modal)
 - Versioning and changelog
 
 ### Changed
