@@ -289,32 +289,39 @@ export default function MyTables({ onBack }) {
                                             {oldItem.content}
                                           </div>
                                           {oldItem.scores && oldItem.scores.length > 0 && (
-                                            <div className="space-y-1">
+                                            <div className="space-y-2">
                                               {oldItem.scores.map((score, scoreIdx) => {
                                                 const interaction = oldItem.interactions?.find(i => i.dimension === score.dimension);
                                                 // Check if this dimension was dismissed in an even earlier version
                                                 const hiddenByPriorDismiss = !interaction && wasDismissedInEarlierVersion(versions, oldItem.version, score.dimension);
                                                 return (
-                                                  <div key={scoreIdx} className="flex items-center gap-2 text-xs">
-                                                    <span className="text-purple-800">{score.dimension}:</span>
-                                                    <span className={`px-1.5 py-0.5 rounded font-bold ${
-                                                      score.score <= 2 ? 'bg-red-100 text-red-800' :
-                                                      score.score <= 4 ? 'bg-yellow-100 text-yellow-800' :
-                                                      'bg-green-100 text-green-800'
-                                                    }`}>
-                                                      {score.score}/5
-                                                    </span>
-                                                    {hiddenByPriorDismiss && (
-                                                      <span className="relative text-orange-600" title="Hidden due to dismissal in earlier version">
-                                                        <span>👁</span>
-                                                        <span className="absolute inset-0 flex items-center justify-center font-bold">✕</span>
+                                                  <div key={scoreIdx} className="text-xs">
+                                                    <div className="flex items-center gap-2">
+                                                      <span className="text-purple-800">{score.dimension}:</span>
+                                                      <span className={`px-1.5 py-0.5 rounded font-bold ${
+                                                        score.score <= 2 ? 'bg-red-100 text-red-800' :
+                                                        score.score <= 4 ? 'bg-yellow-100 text-yellow-800' :
+                                                        'bg-green-100 text-green-800'
+                                                      }`}>
+                                                        {score.score}/5
                                                       </span>
-                                                    )}
-                                                    {interaction?.comment_viewed && (
-                                                      <span className="text-blue-600" title="Viewed">👁</span>
-                                                    )}
-                                                    {interaction?.comment_dismissed && (
-                                                      <span className="text-gray-500" title="Dismissed">✕</span>
+                                                      {hiddenByPriorDismiss && (
+                                                        <span className="relative text-orange-600" title="Hidden due to dismissal in earlier version">
+                                                          <span>👁</span>
+                                                          <span className="absolute inset-0 flex items-center justify-center font-bold">✕</span>
+                                                        </span>
+                                                      )}
+                                                      {interaction?.comment_viewed && (
+                                                        <span className="text-blue-600" title="Viewed">👁</span>
+                                                      )}
+                                                      {interaction?.comment_dismissed && (
+                                                        <span className="text-gray-500" title="Dismissed">✕</span>
+                                                      )}
+                                                    </div>
+                                                    {score.comment && (
+                                                      <div className="text-gray-500 mt-0.5 ml-2 pl-2 border-l border-purple-200">
+                                                        {score.comment}
+                                                      </div>
                                                     )}
                                                   </div>
                                                 );

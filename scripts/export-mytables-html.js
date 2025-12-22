@@ -198,8 +198,8 @@ function renderReviewItem(item, versions, isLatest = true) {
         </div>
       ` : ''}`;
   } else {
-    // Previous version (compact display)
-    const compactScores = (item.scores || []).map(score => {
+    // Previous version display with comment text
+    const scoresWithComments = (item.scores || []).map(score => {
       const interaction = item.interactions?.find(i => i.dimension === score.dimension);
       const hiddenByPriorDismiss = !interaction && wasDismissedInEarlierVersion(versions, item.version, score.dimension);
       const colorClass = getScoreColor(score.score);
@@ -215,11 +215,18 @@ function renderReviewItem(item, versions, isLatest = true) {
         icons += `<span class="text-gray-500" title="Dismissed">&#x2715;</span>`;
       }
 
+      const commentHtml = score.comment
+        ? `<div class="text-gray-500 mt-0.5 ml-2 pl-2 border-l border-purple-200">${escapeHtml(score.comment)}</div>`
+        : '';
+
       return `
-        <div class="flex items-center gap-2 text-xs">
-          <span class="text-purple-800">${escapeHtml(score.dimension)}:</span>
-          <span class="px-1.5 py-0.5 rounded font-bold ${colorClass}">${score.score}/5</span>
-          ${icons}
+        <div class="text-xs mb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-purple-800">${escapeHtml(score.dimension)}:</span>
+            <span class="px-1.5 py-0.5 rounded font-bold ${colorClass}">${score.score}/5</span>
+            ${icons}
+          </div>
+          ${commentHtml}
         </div>`;
     }).join('');
 
@@ -231,7 +238,7 @@ function renderReviewItem(item, versions, isLatest = true) {
         <div class="text-sm text-gray-600 mb-2 bg-purple-50 border border-purple-100 rounded p-2 whitespace-pre-wrap">
           ${escapeHtml(item.content || '(No content)')}
         </div>
-        ${compactScores ? `<div class="space-y-1">${compactScores}</div>` : ''}
+        ${scoresWithComments ? `<div class="space-y-1">${scoresWithComments}</div>` : ''}
       </div>`;
   }
 }
