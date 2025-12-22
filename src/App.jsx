@@ -124,28 +124,31 @@ function AccountDropdown({ onSettings, onMyReviews, onReportIssue }) {
   )
 }
 
+// Get initial view from URL params (synchronous to avoid race with other effects)
+function getInitialViewFromUrl() {
+  const urlParams = new URLSearchParams(window.location.search)
+  const viewParam = urlParams.get('view')
+  return viewParam === 'tables' ? 'tables' : 'main'
+}
+
 function App() {
   const { user, loading } = useAuth()
-  const [currentView, setCurrentView] = useState('main') // 'main' | 'settings' | 'tables'
-  const [isStandaloneTable, setIsStandaloneTable] = useState(false)
+  const initialView = getInitialViewFromUrl()
+  const [currentView, setCurrentView] = useState(initialView) // 'main' | 'settings' | 'tables'
+  const [isStandaloneTable, setIsStandaloneTable] = useState(initialView === 'tables')
   const [showMyReviews, setShowMyReviews] = useState(false)
   const [showReportIssue, setShowReportIssue] = useState(false)
   const [currentReview, setCurrentReview] = useState(null) // { reviewId, paperId, paperTitle, paperConference }
   const reviewComponentRef = useRef(null)
+  const skipAutoShowModalRef = useRef(false) // Skip auto-showing modal after explicit review selection
 
-  // Check URL parameters on mount to handle standalone views
+  // Show My Reviews modal when user signs in without a review on main view
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const viewParam = urlParams.get('view')
-
-    if (viewParam === 'tables') {
-      setCurrentView('tables')
-      setIsStandaloneTable(true)
+    // Skip if we just navigated with an explicit review selection
+    if (skipAutoShowModalRef.current) {
+      skipAutoShowModalRef.current = false
+      return
     }
-  }, [])
-
-  // Show My Reviews modal when user signs in without a review
-  useEffect(() => {
     if (user && !currentReview && currentView === 'main') {
       setShowMyReviews(true)
     }
@@ -242,24 +245,27 @@ function App() {
       <div className="relative">
         <AccountDropdown
           onSettings={() => handleNavigate('settings')}
-          onMyReviews={handleShowMyReviews}
+          onMyReviews={() => {
+            // For standalone tables, just go to main page - modal will auto-show
+            if (isStandaloneTable) {
+              window.location.href = '/'
+            } else {
+              handleShowMyReviews()
+            }
+          }}
           onReportIssue={() => setShowReportIssue(true)}
         />
         <MyTables onBack={isStandaloneTable ? null : () => handleNavigate('main')} />
         {showReportIssue && (
           <ReportIssueModal onClose={() => setShowReportIssue(false)} />
         )}
-        {showMyReviews && (
+        {!isStandaloneTable && showMyReviews && (
           <MyReviews
             onSelectReview={(reviewInfo) => {
               setCurrentReview(reviewInfo)
               setShowMyReviews(false)
-              // Navigate to main view when selecting a review
-              if (isStandaloneTable) {
-                window.location.href = '/'
-              } else {
-                handleNavigate('main')
-              }
+              skipAutoShowModalRef.current = true
+              handleNavigate('main')
             }}
             onCancel={() => setShowMyReviews(false)}
             showCloseButton={currentReview !== null}
