@@ -20,6 +20,7 @@
     "db:reset:keep-users": "./scripts/db-reset-preserve-users.sh",
     "generate:sessions": "node scripts/generate-synthetic-sessions.js",
     "export:sessions": "node scripts/export-sessions.js",
+    "export:mytables": "node scripts/export-mytables-html.js",
     "report:interactions": "node scripts/generate-interaction-report.js",
     "issues": "node scripts/print-issues.js"
   },
