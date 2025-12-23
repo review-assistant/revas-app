@@ -1,0 +1,270 @@
+version: "3.8"
+
+# Revas Application - Production Docker Compose
+# Usage:
+#   1. Copy .env.example to .env and configure
+#   2. docker-compose up -d --build
+#   3. Access frontend at http://localhost
+#   4. Access Supabase Studio at http://localhost:3000
+
+services:
+  # ===========================================
+  # Frontend - React Application
+  # ===========================================
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        VITE_SUPABASE_URL: ${API_EXTERNAL_URL:-http://localhost:8000}
+        VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
+    ports:
+      - "80:80"
+    depends_on:
+      kong:
+        condition: service_healthy
+    networks:
+      - supabase
+    restart: unless-stopped
+
+  # ===========================================
+  # Supabase Core Services
+  # ===========================================
+
+  # Kong - API Gateway
+  kong:
+    image: public.ecr.aws/supabase/kong:2.8.1
+    ports:
+      - "${KONG_HTTP_PORT:-8000}:8000"
+      - "${KONG_HTTPS_PORT:-8443}:8443"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+    volumes:
+      - ./kong/kong.yml:/home/kong/kong.yml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - supabase
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Database
+  db:
+    image: public.ecr.aws/supabase/postgres:17.6.1.064
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXP: ${JWT_EXPIRY:-3600}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - ../supabase/migrations:/docker-entrypoint-initdb.d/migrations:ro
+    networks:
+      - supabase
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # GoTrue - Authentication Service
+  auth:
+    image: public.ecr.aws/supabase/gotrue:v2.184.0
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      GOTRUE_SITE_URL: ${SITE_URL:-http://localhost}
+      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS:-}
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: ${JWT_EXPIRY:-3600}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
+      GOTRUE_SMTP_USER: ${SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-admin@localhost}
+      GOTRUE_MAILER_URLPATHS_INVITE: ${API_EXTERNAL_URL:-http://localhost:8000}/auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: ${API_EXTERNAL_URL:-http://localhost:8000}/auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: ${API_EXTERNAL_URL:-http://localhost:8000}/auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${API_EXTERNAL_URL:-http://localhost:8000}/auth/v1/verify
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: "10"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - supabase
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgREST - RESTful API
+  rest:
+    image: public.ecr.aws/supabase/postgrest:v14.1
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public,graphql_public
+      PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_MAX_ROWS: 1000
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - supabase
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Realtime - WebSocket subscriptions
+  realtime:
+    image: public.ecr.aws/supabase/realtime:v2.68.2
+    environment:
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: postgres
+      DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
+      DB_ENC_KEY: supabaserealtime
+      API_JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${REALTIME_SECRET:-ChangeThisToARandomSecretKeyBase}
+      ERL_AFLAGS: -proto_dist inet_tcp
+      ENABLE_TAILSCALE: "false"
+      DNS_NODES: "''"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - supabase
+    restart: unless-stopped
+
+  # Storage API - File storage
+  storage:
+    image: public.ecr.aws/supabase/storage-api:v1.33.0
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: local
+      GLOBAL_S3_BUCKET: stub
+    volumes:
+      - storage-data:/var/lib/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - supabase
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Edge Runtime - Serverless Functions
+  edge-runtime:
+    image: public.ecr.aws/supabase/edge-runtime:v1.69.28
+    environment:
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      SUPABASE_DB_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+      SUPABASE_INTERNAL_JWT_SECRET: ${JWT_SECRET}
+      # Comment service backend URL - configurable
+      COMMENT_SERVICE_URL: ${COMMENT_SERVICE_URL:-http://host.docker.internal:8888}
+    volumes:
+      - ../supabase/functions:/home/deno/functions:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - supabase
+    restart: unless-stopped
+
+  # ===========================================
+  # Admin Services
+  # ===========================================
+
+  # Postgres Meta - Database introspection for Studio
+  pg-meta:
+    image: public.ecr.aws/supabase/postgres-meta:v0.95.0
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: supabase_admin
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - supabase
+    restart: unless-stopped
+
+  # Supabase Studio - Admin UI
+  studio:
+    image: public.ecr.aws/supabase/studio:2025.12.09-sha-434634f
+    ports:
+      - "${STUDIO_PORT:-3000}:3000"
+    environment:
+      STUDIO_PG_META_URL: http://pg-meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://localhost:8000}
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      NEXT_PUBLIC_ENABLE_LOGS: "true"
+      NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
+    depends_on:
+      db:
+        condition: service_healthy
+      pg-meta:
+        condition: service_started
+    networks:
+      - supabase
+    restart: unless-stopped
+
+networks:
+  supabase:
+    driver: bridge
+
+volumes:
+  db-data:
+  storage-data:

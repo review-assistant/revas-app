@@ -1,0 +1,145 @@
+_format_version: "2.1"
+_transform: true
+
+###
+### Consumers / Users
+###
+consumers:
+  - username: ANON
+    keyauth_credentials:
+      - key: ${ANON_KEY}
+  - username: SERVICE_ROLE
+    keyauth_credentials:
+      - key: ${SERVICE_ROLE_KEY}
+
+###
+### Access Control List
+###
+acls:
+  - consumer: ANON
+    group: anon
+  - consumer: SERVICE_ROLE
+    group: admin
+
+###
+### Services and Routes
+###
+
+services:
+  ## Auth Service (GoTrue)
+  - name: auth-v1
+    url: http://auth:9999/
+    routes:
+      - name: auth-v1-route
+        strip_path: true
+        paths:
+          - /auth/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_in_header: true
+          key_names:
+            - apikey
+
+  ## REST API (PostgREST)
+  - name: rest-v1
+    url: http://rest:3000/
+    routes:
+      - name: rest-v1-route
+        strip_path: true
+        paths:
+          - /rest/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_in_header: true
+          key_names:
+            - apikey
+
+  ## GraphQL (if enabled)
+  - name: graphql-v1
+    url: http://rest:3000/rpc/graphql
+    routes:
+      - name: graphql-v1-route
+        strip_path: true
+        paths:
+          - /graphql/v1
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_in_header: true
+          key_names:
+            - apikey
+
+  ## Realtime WebSocket
+  - name: realtime-v1
+    url: http://realtime:4000/socket/
+    routes:
+      - name: realtime-v1-route
+        strip_path: true
+        paths:
+          - /realtime/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_in_header: true
+          key_names:
+            - apikey
+
+  ## Storage API
+  - name: storage-v1
+    url: http://storage:5000/
+    routes:
+      - name: storage-v1-route
+        strip_path: true
+        paths:
+          - /storage/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_in_header: true
+          key_names:
+            - apikey
+
+  ## Edge Functions
+  - name: functions-v1
+    url: http://edge-runtime:8081/functions/v1/
+    routes:
+      - name: functions-v1-route
+        strip_path: true
+        paths:
+          - /functions/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_in_header: true
+          key_names:
+            - apikey
+
+  ## Postgres Meta (for Studio)
+  - name: pg-meta
+    url: http://pg-meta:8080/
+    routes:
+      - name: pg-meta-route
+        strip_path: true
+        paths:
+          - /pg/
+    plugins:
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_in_header: true
+          key_names:
+            - apikey
