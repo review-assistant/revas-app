@@ -98,37 +98,44 @@ These keys must match the `ANON_KEY` and `SERVICE_ROLE_KEY` in your `.env` file.
 # Build and start all services
 docker-compose up -d --build
 
-# IMPORTANT: Wait for database to be healthy, then set service passwords
-# (This is needed because Supabase creates roles after the init scripts run)
-sleep 30
-docker-compose exec -e PGPASSWORD=postgres db psql -U supabase_admin -d postgres -c "
-ALTER USER supabase_auth_admin WITH PASSWORD 'postgres';
-ALTER USER supabase_storage_admin WITH PASSWORD 'postgres';
-ALTER USER authenticator WITH PASSWORD 'postgres';
+# Wait for database to be healthy (check with docker-compose ps)
+# The db service should show "healthy" status before proceeding
+docker-compose ps
+```
+
+### 6. Initialize Database
+
+**IMPORTANT:** These steps must be run after the first startup and after any database reset.
+
+```bash
+# Set the password variable (use your POSTGRES_PASSWORD from .env)
+export DB_PASSWORD="your-postgres-password-here"
+
+# Set service account passwords
+# (Supabase creates these roles after startup, so we set passwords manually)
+docker-compose exec -e PGPASSWORD=$DB_PASSWORD db psql -U supabase_admin -d postgres -c "
+ALTER USER supabase_auth_admin WITH PASSWORD '$DB_PASSWORD';
+ALTER USER supabase_storage_admin WITH PASSWORD '$DB_PASSWORD';
+ALTER USER authenticator WITH PASSWORD '$DB_PASSWORD';
 "
 
 # Restart services to use new passwords
 docker-compose restart auth rest
 
-# Run application migrations
-cd .. && for f in supabase/migrations/*.sql; do
-  echo "Running $f..."
-  docker-compose -f docker/docker-compose.yml exec -T -e PGPASSWORD=postgres db psql -U postgres -d postgres < "$f"
-done && cd docker
+# Run application migrations (from the docker directory)
+for f in ../supabase/migrations/*.sql; do
+  echo "Running $(basename $f)..."
+  docker-compose exec -T -e PGPASSWORD=$DB_PASSWORD db psql -U postgres -d postgres < "$f"
+done
 
 # Restart REST to reload schema cache
 docker-compose restart rest
 
-# View logs
-docker-compose logs -f
-
-# Check service health
+# Verify all services are healthy
 docker-compose ps
 ```
 
-**Note:** Replace `'postgres'` with your actual `POSTGRES_PASSWORD` value.
-
-### 6. Verify Deployment
+### 7. Verify Deployment
 
 - **Frontend**: http://localhost
 - **Supabase API**: http://localhost:8000
@@ -242,6 +249,8 @@ docker volume rm docker_db-data
 
 # Start fresh
 docker-compose up -d
+
+# IMPORTANT: After reset, re-run Step 6 (Initialize Database) to set passwords and run migrations
 ```
 
 ## Admin Operations
@@ -282,12 +291,12 @@ npm run export:mytables
 For raw database access:
 
 ```bash
-# Export all data via admin function
-docker-compose exec -e PGPASSWORD=postgres db psql -U postgres -d postgres -c \
+# Export all data via admin function (use your POSTGRES_PASSWORD)
+docker-compose exec -e PGPASSWORD=$DB_PASSWORD db psql -U postgres -d postgres -c \
   "SELECT admin_view_all_tables();" > export.json
 
 # Backup entire database
-docker-compose exec db pg_dump -U postgres postgres > backup.sql
+docker-compose exec -e PGPASSWORD=$DB_PASSWORD db pg_dump -U postgres postgres > backup.sql
 ```
 
 **Note:** Replace `<YOUR_SERVICE_ROLE_KEY>` with the value from your `.env` file. For local testing with demo keys:
