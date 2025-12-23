@@ -296,16 +296,18 @@ async function createCommentsJob(points) {
   logDebug(`POST ${url}`, { pointsCount: points.length });
   logDebug('Request body:', { points });
 
-  // Get auth token from Supabase session
+  // Get auth token and anon key from Supabase
   const { supabase } = await import('./supabaseClient.js');
   const { data: { session } } = await supabase.auth.getSession();
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'accept': 'application/json',
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session?.access_token}`
+      'Authorization': `Bearer ${session?.access_token}`,
+      'apikey': anonKey
     },
     body: JSON.stringify({ points })
   });
@@ -335,15 +337,17 @@ async function pollJobResult(jobId) {
 
   logDebug(`GET ${url}`);
 
-  // Get auth token from Supabase session
+  // Get auth token and anon key from Supabase
   const { supabase } = await import('./supabaseClient.js');
   const { data: { session } } = await supabase.auth.getSession();
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   const response = await fetch(url, {
     method: 'GET',
     headers: {
       'accept': 'application/json',
-      'Authorization': `Bearer ${session?.access_token}`
+      'Authorization': `Bearer ${session?.access_token}`,
+      'apikey': anonKey
     }
   });
 

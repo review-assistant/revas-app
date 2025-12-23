@@ -115,7 +115,7 @@ services:
 
   ## Edge Functions
   - name: functions-v1
-    url: http://edge-runtime:8081/functions/v1/
+    url: http://edge-runtime:9000/
     routes:
       - name: functions-v1-route
         strip_path: true

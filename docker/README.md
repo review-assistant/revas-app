@@ -15,9 +15,8 @@ This directory contains everything needed to deploy the Revas application stack 
                     │                    │  PostgreSQL       │   │
   Admins ─────────► │                    │  Auth (GoTrue)    │   │
         Port 3000   │  ┌──────────┐      │  REST (PostgREST) │   │
-                    │  │  Studio  │ ───► │  Realtime         │   │
-                    │  └──────────┘      │  Edge Functions   │   │
-                    │                    │  Storage          │   │
+                    │  │  Studio  │ ───► │  Edge Functions   │   │
+                    │  └──────────┘      │                   │   │
                     └────────────────────┴───────────────────┘   │
                                               │
                                               ▼
@@ -99,12 +98,35 @@ These keys must match the `ANON_KEY` and `SERVICE_ROLE_KEY` in your `.env` file.
 # Build and start all services
 docker-compose up -d --build
 
+# IMPORTANT: Wait for database to be healthy, then set service passwords
+# (This is needed because Supabase creates roles after the init scripts run)
+sleep 30
+docker-compose exec -e PGPASSWORD=postgres db psql -U supabase_admin -d postgres -c "
+ALTER USER supabase_auth_admin WITH PASSWORD 'postgres';
+ALTER USER supabase_storage_admin WITH PASSWORD 'postgres';
+ALTER USER authenticator WITH PASSWORD 'postgres';
+"
+
+# Restart services to use new passwords
+docker-compose restart auth rest
+
+# Run application migrations
+cd .. && for f in supabase/migrations/*.sql; do
+  echo "Running $f..."
+  docker-compose -f docker/docker-compose.yml exec -T -e PGPASSWORD=postgres db psql -U postgres -d postgres < "$f"
+done && cd docker
+
+# Restart REST to reload schema cache
+docker-compose restart rest
+
 # View logs
 docker-compose logs -f
 
 # Check service health
 docker-compose ps
 ```
+
+**Note:** Replace `'postgres'` with your actual `POSTGRES_PASSWORD` value.
 
 ### 6. Verify Deployment
 
@@ -122,9 +144,8 @@ docker-compose ps
 | db | 5432 | PostgreSQL database |
 | auth | - | Authentication service |
 | rest | - | REST API (PostgREST) |
-| realtime | - | WebSocket subscriptions |
-| storage | - | File storage |
 | edge-runtime | - | Serverless functions |
+| pg-meta | - | Database introspection for Studio |
 
 ## Configuration
 
@@ -223,6 +244,57 @@ docker volume rm docker_db-data
 docker-compose up -d
 ```
 
+## Admin Operations
+
+### Export Session Data
+
+Export all review sessions with decrypted content:
+
+```bash
+# From project root directory
+VITE_SUPABASE_URL=http://localhost:8000 \
+SUPABASE_SERVICE_ROLE_KEY=<YOUR_SERVICE_ROLE_KEY> \
+npm run export:sessions
+```
+
+### Generate Interaction Report
+
+Generate a report analyzing reviewer interactions with comments:
+
+```bash
+VITE_SUPABASE_URL=http://localhost:8000 \
+SUPABASE_SERVICE_ROLE_KEY=<YOUR_SERVICE_ROLE_KEY> \
+npm run report:interactions
+```
+
+### Export User Tables (HTML format)
+
+Export review data in HTML format:
+
+```bash
+VITE_SUPABASE_URL=http://localhost:8000 \
+SUPABASE_SERVICE_ROLE_KEY=<YOUR_SERVICE_ROLE_KEY> \
+npm run export:mytables
+```
+
+### Direct Database Export
+
+For raw database access:
+
+```bash
+# Export all data via admin function
+docker-compose exec -e PGPASSWORD=postgres db psql -U postgres -d postgres -c \
+  "SELECT admin_view_all_tables();" > export.json
+
+# Backup entire database
+docker-compose exec db pg_dump -U postgres postgres > backup.sql
+```
+
+**Note:** Replace `<YOUR_SERVICE_ROLE_KEY>` with the value from your `.env` file. For local testing with demo keys:
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+```
+
 ## Troubleshooting
 
 ### Services not starting
@@ -279,9 +351,14 @@ docker/
 ├── nginx.conf            # Nginx configuration
 ├── .env.example          # Environment template
 ├── .env                  # Your configuration (not committed)
+├── .env.local            # Local testing configuration
 ├── kong/
 │   └── kong.yml          # API gateway routes
-├── init/
-│   └── 00-init.sh        # Database initialization
 └── README.md             # This file
+
+supabase/functions/
+├── main/
+│   └── index.ts          # Edge function router
+└── get-comments/
+    └── index.ts          # Comment service proxy function
 ```
