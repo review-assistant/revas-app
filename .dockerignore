@@ -32,8 +32,9 @@ test-results
 !README.md
 docs
 
-# Docker (don't include docker dir in frontend build context)
-docker
+# Docker (exclude most, but keep nginx.conf for build)
+docker/*
+!docker/nginx.conf
 
 # Misc
 .DS_Store
