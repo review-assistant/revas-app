@@ -72,7 +72,28 @@ console.log('SERVICE_ROLE_KEY:', jwt.sign({role:'service_role',iss:'supabase'}, 
 3. For ANON_KEY payload: `{"role":"anon","iss":"supabase","exp":1892614400}`
 4. For SERVICE_ROLE_KEY payload: `{"role":"service_role","iss":"supabase","exp":1892614400}`
 
-### 4. Build and Start
+### 4. Update Kong API Gateway Keys
+
+**Important:** For production, update the API keys in `kong/kong.yml`:
+
+```bash
+nano kong/kong.yml
+```
+
+Find the `consumers` section and replace the demo keys with your generated tokens:
+```yaml
+consumers:
+  - username: ANON
+    keyauth_credentials:
+      - key: YOUR_ANON_KEY_HERE
+  - username: SERVICE_ROLE
+    keyauth_credentials:
+      - key: YOUR_SERVICE_ROLE_KEY_HERE
+```
+
+These keys must match the `ANON_KEY` and `SERVICE_ROLE_KEY` in your `.env` file.
+
+### 5. Build and Start
 
 ```bash
 # Build and start all services
@@ -85,7 +106,7 @@ docker-compose logs -f
 docker-compose ps
 ```
 
-### 5. Verify Deployment
+### 6. Verify Deployment
 
 - **Frontend**: http://localhost
 - **Supabase API**: http://localhost:8000

@@ -47,3 +47,5 @@ exported-sessions.json
 interaction-report.json
 interaction-report.csv
 mytables-export.html
+docker/.env.local
+docker/.env
