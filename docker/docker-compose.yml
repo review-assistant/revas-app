@@ -71,7 +71,7 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
       - ./init:/docker-entrypoint-initdb.d:ro
-      - ../supabase/migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ../supabase/migrations:/migrations:ro
     networks:
       - supabase
     restart: unless-stopped

@@ -15,7 +15,7 @@ done
 echo "PostgreSQL is ready!"
 
 # Run migrations in order
-MIGRATIONS_DIR="/docker-entrypoint-initdb.d/migrations"
+MIGRATIONS_DIR="/migrations"
 
 if [ -d "$MIGRATIONS_DIR" ]; then
   echo "Running migrations from $MIGRATIONS_DIR..."
